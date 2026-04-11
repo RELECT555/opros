@@ -74,6 +74,12 @@ export default function App() {
   const CRM_PURPOSE    = cfg.q1.options
   const CRM_LIST       = cfg.q2.options
   const CURRENT_STATUS = cfg.q3.options
+  const Q1_TITLE = cfg.q1.title
+  const Q1_SUB   = cfg.q1.sub
+  const Q2_TITLE = cfg.q2.title
+  const Q2_SUB   = cfg.q2.sub
+  const Q3_TITLE = cfg.q3.title
+  const Q3_SUB   = cfg.q3.sub
 
   const validPhone = /^[\d\s\+\-\(\)]{7,}$/.test(form.phone.trim())
   const canSubmit =
@@ -341,8 +347,8 @@ export default function App() {
                     </motion.span>
                   )}</AnimatePresence>
                 </div>
-                <h3 className="qcard-title">Для чего вам нужна CRM?</h3>
-                <p className="qcard-sub">Выберите всё подходящее</p>
+                <h3 className="qcard-title">{Q1_TITLE}</h3>
+                <p className="qcard-sub">{Q1_SUB}</p>
               </div>
               <div className="chips">
                 {CRM_PURPOSE.map(item => {
@@ -374,8 +380,8 @@ export default function App() {
                     </motion.span>
                   )}</AnimatePresence>
                 </div>
-                <h3 className="qcard-title">Какими CRM пользовались раньше?</h3>
-                <p className="qcard-sub">Можно выбрать несколько</p>
+                <h3 className="qcard-title">{Q2_TITLE}</h3>
+                <p className="qcard-sub">{Q2_SUB}</p>
               </div>
               <div className="chips chips--grid">
                 {CRM_LIST.map(item => {
@@ -407,8 +413,8 @@ export default function App() {
                     </motion.span>
                   )}</AnimatePresence>
                 </div>
-                <h3 className="qcard-title">Текущая ситуация</h3>
-                <p className="qcard-sub">Один вариант</p>
+                <h3 className="qcard-title">{Q3_TITLE}</h3>
+                <p className="qcard-sub">{Q3_SUB}</p>
               </div>
               <div className="radio-list">
                 {CURRENT_STATUS.map((opt, i) => (
