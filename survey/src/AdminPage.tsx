@@ -6,7 +6,7 @@ import { loadConfig, loadConfigRemote, saveConfigRemote, DEFAULTS } from './conf
 import type { SurveyConfig } from './config'
 import './Admin.css'
 
-const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD ?? 'admin2024'
+const ADMIN_PASSWORD = 'admin2026'
 
 const CURRENT_LABELS: Record<string, string> = {
   yes: 'Да, используем CRM',

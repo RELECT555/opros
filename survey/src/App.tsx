@@ -63,6 +63,7 @@ export default function App() {
   const [screen, setScreen] = useState<'welcome' | 'survey'>('welcome')
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
+  const [consent, setConsent] = useState(false)
   const [cfg, setCfg] = useState(loadConfig)
   const [token] = useState(() => new URLSearchParams(window.location.search).get('t') ?? undefined)
 
@@ -80,7 +81,8 @@ export default function App() {
     form.crm_used_before.length > 0 &&
     form.current_crm !== '' &&
     form.name.trim().length > 0 &&
-    validPhone
+    validPhone &&
+    consent
 
   const answeredSections = [
     form.crm_purpose.length > 0,
@@ -473,6 +475,41 @@ export default function App() {
               </div>
             </motion.div>
 
+            {/* Consent */}
+            <motion.div variants={fadeUp}>
+              <motion.label
+                className={`consent-card ${consent ? 'consent-card--on' : ''}`}
+                whileTap={{ scale: 0.99 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={consent}
+                  onChange={e => setConsent(e.target.checked)}
+                  className="consent-checkbox-hidden"
+                />
+                <span className="consent-box">
+                  <AnimatePresence>
+                    {consent && (
+                      <motion.svg
+                        key="check"
+                        width="12" height="12" viewBox="0 0 12 12" fill="none"
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        transition={{ duration: 0.18 }}
+                      >
+                        <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </motion.svg>
+                    )}
+                  </AnimatePresence>
+                </span>
+                <span className="consent-body">
+                  <span className="consent-title">Согласие на обработку данных</span>
+                  <span className="consent-sub">Нажимая «Отправить», вы соглашаетесь с политикой конфиденциальности и даёте согласие на обработку персональных данных</span>
+                </span>
+              </motion.label>
+            </motion.div>
+
             {/* Submit */}
             <motion.div variants={fadeUp} className="footer">
               {status === 'error' && (
@@ -489,11 +526,12 @@ export default function App() {
                   <span className="spinner" />
                 ) : canSubmit ? (
                   'Отправить заявку →'
+                ) : !consent ? (
+                  'Подтвердите согласие'
                 ) : (
                   `Осталось заполнить: ${4 - answeredSections}`
                 )}
               </motion.button>
-              <p className="footer-note">Нажимая кнопку, вы соглашаетесь на обработку персональных данных</p>
             </motion.div>
           </motion.div>
         )}
