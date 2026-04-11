@@ -1,6 +1,6 @@
 import { useState, useEffect, memo } from 'react'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
-import { saveSurveyResponse } from './lib/supabase'
+import { saveSurveyResponse, markTokenOpened } from './lib/supabase'
 import { SparklesCore } from './components/ui/sparkles'
 import { DottedSurface } from './components/ui/dotted-surface'
 import { SpiralAnimation } from './components/ui/spiral-animation'
@@ -69,6 +69,7 @@ export default function App() {
 
   useEffect(() => {
     loadConfigRemote().then(setCfg)
+    if (token) markTokenOpened(token)
   }, [])
 
   const CRM_PURPOSE    = cfg.q1.options

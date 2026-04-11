@@ -783,3 +783,63 @@ body:has(.adm-center) #root {
   border-color: rgba(248,113,113,0.5);
   color: #f87171;
 }
+
+/* ── Response status badges ── */
+.adm-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.adm-status--new         { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+.adm-status--called      { background: rgba(234,179,8,0.12);  color: #fde047; border: 1px solid rgba(234,179,8,0.3); }
+.adm-status--progress    { background: rgba(59,130,246,0.12); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3); }
+.adm-status--closed      { background: rgba(34,197,94,0.12);  color: #86efac; border: 1px solid rgba(34,197,94,0.3); }
+
+/* ── Status change buttons ── */
+.adm-status-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.adm-status-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.adm-status-btn {
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-2);
+  transition: opacity 0.15s, transform 0.1s;
+}
+.adm-status-btn:hover:not(:disabled) { opacity: 0.85; transform: scale(1.02); }
+.adm-status-btn:disabled { opacity: 0.45; cursor: default; }
+.adm-status-btn--active.adm-status--new      { background: rgba(99,102,241,0.15); color: #a5b4fc; border-color: rgba(99,102,241,0.4); }
+.adm-status-btn--active.adm-status--called   { background: rgba(234,179,8,0.12);  color: #fde047; border-color: rgba(234,179,8,0.4); }
+.adm-status-btn--active.adm-status--progress { background: rgba(59,130,246,0.12); color: #93c5fd; border-color: rgba(59,130,246,0.4); }
+.adm-status-btn--active.adm-status--closed   { background: rgba(34,197,94,0.12);  color: #86efac; border-color: rgba(34,197,94,0.4); }
+
+/* ── Token opened badge ── */
+.adm-token-badge--opened {
+  background: rgba(234,179,8,0.12);
+  color: #fde047;
+  border: 1px solid rgba(234,179,8,0.25);
+}
+
+/* ── Small spinner for status buttons ── */
+.adm-spinner--sm {
+  width: 12px;
+  height: 12px;
+  border-width: 1.5px;
+}

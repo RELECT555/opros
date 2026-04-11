@@ -23,15 +23,19 @@ export interface SurveyResponse {
   token?: string
 }
 
+export type ResponseStatus = 'new' | 'called' | 'in_progress' | 'closed'
+
 export interface SurveyRecord extends SurveyResponse {
   id: number
   created_at: string
+  status: ResponseStatus
 }
 
 export interface TokenRecord {
   token: string
   email: string
   created_at: string
+  opened_at: string | null
   used_at: string | null
 }
 
@@ -70,6 +74,22 @@ export async function resolveToken(token: string): Promise<string | null> {
     .single()
   if (error || !data) return null
   return (data as { email: string }).email
+}
+
+export async function updateResponseStatus(id: number, status: ResponseStatus): Promise<void> {
+  const { error } = await supabase
+    .from('survey_responses')
+    .update({ status })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function markTokenOpened(token: string): Promise<void> {
+  await supabase
+    .from('survey_tokens')
+    .update({ opened_at: new Date().toISOString() })
+    .eq('token', token)
+    .is('opened_at', null) // только если ещё не помечен
 }
 
 export async function getResponses(): Promise<SurveyRecord[]> {

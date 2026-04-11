@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
-import { getResponses, getTokens, createTokens, deleteToken } from './lib/supabase'
-import type { SurveyRecord, TokenRecord } from './lib/supabase'
+import { getResponses, getTokens, createTokens, deleteToken, updateResponseStatus } from './lib/supabase'
+import type { SurveyRecord, TokenRecord, ResponseStatus } from './lib/supabase'
 import { loadConfig, loadConfigRemote, saveConfigRemote, DEFAULTS } from './config'
 import type { SurveyConfig } from './config'
 import './Admin.css'
@@ -14,6 +14,14 @@ const CURRENT_LABELS: Record<string, string> = {
   looking: 'Выбираем CRM прямо сейчас',
   switching: 'Хотим сменить текущую',
 }
+
+const STATUS_CONFIG: Record<ResponseStatus, { label: string; cls: string }> = {
+  new:         { label: 'Новая',      cls: 'adm-status--new' },
+  called:      { label: 'Позвонили',  cls: 'adm-status--called' },
+  in_progress: { label: 'В работе',   cls: 'adm-status--progress' },
+  closed:      { label: 'Закрыто',    cls: 'adm-status--closed' },
+}
+const STATUS_ORDER: ResponseStatus[] = ['new', 'called', 'in_progress', 'closed']
 
 function formatDate(iso: string) {
   const d = new Date(iso)
@@ -97,6 +105,7 @@ function ResponsesTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [expanded, setExpanded] = useState<number | null>(null)
+  const [updatingStatus, setUpdatingStatus] = useState<number | null>(null)
 
   function load() {
     setLoading(true)
@@ -111,6 +120,16 @@ function ResponsesTab() {
   function emailByToken(token?: string) {
     if (!token) return null
     return tokens.find(t => t.token === token)?.email ?? null
+  }
+
+  async function changeStatus(id: number, status: ResponseStatus) {
+    setUpdatingStatus(id)
+    try {
+      await updateResponseStatus(id, status)
+      setRows(prev => prev.map(r => r.id === id ? { ...r, status } : r))
+    } finally {
+      setUpdatingStatus(null)
+    }
   }
 
   return (
@@ -141,64 +160,86 @@ function ResponsesTab() {
       )}
 
       <div className="adm-responses-list">
-        {rows.map((row, idx) => (
-          <motion.div
-            key={row.id}
-            className={`adm-card adm-response-card ${expanded === row.id ? 'adm-card--open' : ''}`}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: idx * 0.04, ease: easeOut }}
-          >
-            <button
-              className="adm-response-header"
-              onClick={() => setExpanded(expanded === row.id ? null : row.id)}
+        {rows.map((row, idx) => {
+          const rowStatus: ResponseStatus = (row.status as ResponseStatus) ?? 'new'
+          const statusCfg = STATUS_CONFIG[rowStatus]
+          return (
+            <motion.div
+              key={row.id}
+              className={`adm-card adm-response-card ${expanded === row.id ? 'adm-card--open' : ''}`}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: idx * 0.04, ease: easeOut }}
             >
-              <div className="adm-response-left">
-                <span className="adm-response-num">#{rows.length - idx}</span>
-                <div>
-                  <p className="adm-response-name">{row.name}</p>
-                  <p className="adm-response-phone">{row.phone}</p>
-                  {emailByToken(row.token) && (
-                    <p className="adm-response-email">{emailByToken(row.token)}</p>
-                  )}
-                </div>
-              </div>
-              <div className="adm-response-right">
-                <span className="adm-response-date">{formatDate(row.created_at)}</span>
-                <span className={`adm-chevron ${expanded === row.id ? 'adm-chevron--open' : ''}`}>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </span>
-              </div>
-            </button>
-
-            <AnimatePresence>
-              {expanded === row.id && (
-                <motion.div
-                  className="adm-response-body"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.28, ease: easeOut }}
-                >
-                  <div className="adm-response-body-inner">
-                    <DataRow label="Имя" value={row.name} highlight />
-                    <DataRow label="Телефон" value={row.phone} highlight />
+              <button
+                className="adm-response-header"
+                onClick={() => setExpanded(expanded === row.id ? null : row.id)}
+              >
+                <div className="adm-response-left">
+                  <span className="adm-response-num">#{rows.length - idx}</span>
+                  <div>
+                    <p className="adm-response-name">{row.name}</p>
+                    <p className="adm-response-phone">{row.phone}</p>
                     {emailByToken(row.token) && (
-                      <DataRow label="Email (источник)" value={emailByToken(row.token)!} highlight />
+                      <p className="adm-response-email">{emailByToken(row.token)}</p>
                     )}
-                    <div className="adm-divider" />
-                    <DataRow label="Текущий статус" value={CURRENT_LABELS[row.current_crm] ?? row.current_crm} />
-                    <DataRow label="Цель CRM" value={row.crm_purpose.join(', ')} />
-                    <DataRow label="Использовали раньше" value={row.crm_used_before.join(', ')} />
-                    {row.comment && <DataRow label="Комментарий" value={row.comment} />}
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        ))}
+                </div>
+                <div className="adm-response-right">
+                  <span className={`adm-status-badge ${statusCfg.cls}`}>{statusCfg.label}</span>
+                  <span className="adm-response-date">{formatDate(row.created_at)}</span>
+                  <span className={`adm-chevron ${expanded === row.id ? 'adm-chevron--open' : ''}`}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </span>
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {expanded === row.id && (
+                  <motion.div
+                    className="adm-response-body"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.28, ease: easeOut }}
+                  >
+                    <div className="adm-response-body-inner">
+                      <DataRow label="Имя" value={row.name} highlight />
+                      <DataRow label="Телефон" value={row.phone} highlight />
+                      {emailByToken(row.token) && (
+                        <DataRow label="Email (источник)" value={emailByToken(row.token)!} highlight />
+                      )}
+                      <div className="adm-divider" />
+                      <DataRow label="Текущий статус" value={CURRENT_LABELS[row.current_crm] ?? row.current_crm} />
+                      <DataRow label="Цель CRM" value={row.crm_purpose.join(', ')} />
+                      <DataRow label="Использовали раньше" value={row.crm_used_before.join(', ')} />
+                      {row.comment && <DataRow label="Комментарий" value={row.comment} />}
+
+                      <div className="adm-divider" />
+                      <div className="adm-status-row">
+                        <span className="adm-data-label">Изменить статус</span>
+                        <div className="adm-status-btns">
+                          {STATUS_ORDER.map(s => (
+                            <button
+                              key={s}
+                              className={`adm-status-btn ${STATUS_CONFIG[s].cls} ${rowStatus === s ? 'adm-status-btn--active' : ''}`}
+                              onClick={() => changeStatus(row.id, s)}
+                              disabled={updatingStatus === row.id || rowStatus === s}
+                            >
+                              {updatingStatus === row.id && rowStatus !== s ? <span className="adm-spinner adm-spinner--sm" /> : STATUS_CONFIG[s].label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )
+        })}
       </div>
     </div>
   )
@@ -323,7 +364,9 @@ function TokensTab() {
             <div className="adm-token-meta">
               {t.used_at
                 ? <span className="adm-token-badge adm-token-badge--used">Заполнен</span>
-                : <span className="adm-token-badge adm-token-badge--new">Не открыт</span>
+                : t.opened_at
+                  ? <span className="adm-token-badge adm-token-badge--opened">Открыт</span>
+                  : <span className="adm-token-badge adm-token-badge--new">Не открыт</span>
               }
             </div>
             <div className="adm-token-actions">
