@@ -269,11 +269,83 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Question cards ── */
-.qcard {
-  padding: 24px;
+/* ── Step progress in header ── */
+.sf-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 20px;
+}
+
+.sf-step {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+.sf-step:last-child { flex: 0; }
+
+.sf-step-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-3);
+  transition: border-color 0.25s, background 0.25s;
+}
+.sf-step-dot--active {
+  border-color: rgba(91,115,249,0.5);
+  background: rgba(91,115,249,0.1);
+  color: var(--accent);
+}
+.sf-step-dot--done {
+  border-color: rgba(34,197,94,0.5);
+  background: rgba(34,197,94,0.12);
+  color: var(--ok);
+}
+.sf-step-num {
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-step-line {
+  flex: 1;
+  height: 1.5px;
+  background: rgba(255,255,255,0.07);
   position: relative;
   overflow: hidden;
+  margin: 0 4px;
+}
+.sf-step-line-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  background: linear-gradient(90deg, var(--ok), rgba(34,197,94,0.4));
+  border-radius: 99px;
+}
+
+/* ── Question cards ── */
+.qcard {
+  padding: 24px 24px 24px 28px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Left accent stripe */
+.qcard-stripe {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: rgba(255,255,255,0.06);
+  transition: background 0.3s;
+}
+.qcard-stripe--done {
+  background: linear-gradient(to bottom, var(--accent), var(--accent-2));
+  opacity: 0.8;
 }
 
 /* Big decorative background number */
@@ -285,47 +357,39 @@ body {
   font-weight: 800;
   letter-spacing: -4px;
   line-height: 1;
-  color: rgba(255,255,255,0.028);
+  color: rgba(255,255,255,0.025);
   pointer-events: none;
   user-select: none;
   font-variant-numeric: tabular-nums;
 }
 
-.qcard-head {
-  margin-bottom: 18px;
-}
+.qcard-head { margin-bottom: 18px; }
 
-/* Step row */
-.qcard-step {
-  display: flex;
+/* Step pill */
+.qcard-step { margin-bottom: 10px; }
+
+.qcard-step-pill {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.qcard-step-num {
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-  background: rgba(91,115,249,0.12);
-  border: 1px solid rgba(91,115,249,0.2);
-  border-radius: 5px;
-  padding: 2px 7px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 2px 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-3);
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  letter-spacing: 0.02em;
 }
-
-.qcard-done {
+.qcard-step-pill--done {
+  background: rgba(34,197,94,0.1);
+  border-color: rgba(34,197,94,0.25);
+  color: var(--ok);
+}
+.qcard-step-pill-inner {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--ok);
-  background: rgba(34,197,94,0.1);
-  border: 1px solid rgba(34,197,94,0.2);
-  border-radius: 5px;
-  padding: 2px 8px;
 }
 
 .qcard-title {
@@ -362,7 +426,7 @@ body {
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 99px;
-  padding: 8px 15px;
+  padding: 8px 14px 8px 10px;
   font-size: 13px;
   font-weight: 500;
   color: var(--text-2);
@@ -380,16 +444,28 @@ body {
 }
 
 .chip--on {
-  background: linear-gradient(135deg, rgba(91,115,249,0.25), rgba(155,109,255,0.18));
+  background: linear-gradient(135deg, rgba(91,115,249,0.22), rgba(155,109,255,0.15));
   border-color: rgba(91,115,249,0.5);
   color: #fff;
-  box-shadow: 0 0 12px rgba(91,115,249,0.2);
+  box-shadow: 0 0 14px rgba(91,115,249,0.18);
 }
 
-.chip--on .chip-check {
-  background: rgba(255,255,255,0.2);
+/* Checkbox control inside chip */
+.chip-ctrl {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+.chip--on .chip-ctrl {
+  background: rgba(255,255,255,0.22);
   border-color: transparent;
-  color: #fff;
 }
 
 /* ── Radio list ── */
@@ -402,11 +478,11 @@ body {
 .radio-btn {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 12px;
-  padding: 14px 16px;
+  padding: 13px 16px;
   font-size: 14px;
   font-weight: 500;
   color: var(--text-2);
@@ -427,7 +503,31 @@ body {
   border-color: rgba(91,115,249,0.5);
   color: var(--text);
   background: linear-gradient(135deg, rgba(91,115,249,0.12), rgba(155,109,255,0.08));
-  box-shadow: 0 0 16px rgba(91,115,249,0.12);
+  box-shadow: 0 0 18px rgba(91,115,249,0.12);
+}
+
+/* Radio circle control */
+.radio-circle {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color 0.15s;
+}
+.radio-btn--on .radio-circle {
+  border-color: var(--accent);
+}
+.radio-circle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: block;
 }
 
 .radio-idx {
@@ -440,20 +540,15 @@ body {
   transition: color 0.15s;
 }
 
-.radio-btn--on .radio-idx {
-  color: var(--accent);
-}
-
-.radio-label {
-  flex: 1;
-}
+.radio-btn--on .radio-idx { color: var(--accent); }
+.radio-label { flex: 1; }
 
 .radio-arrow {
-  font-size: 14px;
   color: var(--text-3);
   opacity: 0;
   transform: translateX(-4px);
   transition: opacity 0.15s, transform 0.15s, color 0.15s;
+  display: flex;
 }
 
 .radio-btn:hover .radio-arrow,
