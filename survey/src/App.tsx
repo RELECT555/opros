@@ -94,6 +94,9 @@ export default function App() {
 
   return (
     <div className="root">
+      {import.meta.env.DEV && (
+        <a href="/admin" className="dev-admin-link">⚙ Админка</a>
+      )}
       <div className="bg-scene">
         <div className="bg-orb bg-orb--1" />
         <div className="bg-orb bg-orb--2" />

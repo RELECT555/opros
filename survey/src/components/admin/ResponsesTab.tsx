@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
+import Pagination from '@mui/material/Pagination'
+import Chip from '@mui/material/Chip'
+import Tabs from '@mui/material/Tabs'
+import Tab from '@mui/material/Tab'
 import {
   getResponsesPaged, getResponses, getTokens,
   updateResponseStatus, updateManagerNote, PAGE_SIZE,
 } from '../../lib/supabase'
-import type { SurveyRecord, TokenRecord, ResponseStatus } from '../../lib/supabase'
+import type { SurveyRecord, TokenRecord, ResponseStatus, Survey } from '../../lib/supabase'
 import { DataRow } from './shared'
 
 const CURRENT_LABELS: Record<string, string> = {
@@ -14,11 +18,11 @@ const CURRENT_LABELS: Record<string, string> = {
   switching: 'Хотим сменить текущую',
 }
 
-export const STATUS_CONFIG: Record<ResponseStatus, { label: string; cls: string }> = {
-  new:         { label: 'Новая',      cls: 'adm-status--new' },
-  called:      { label: 'Позвонили',  cls: 'adm-status--called' },
-  in_progress: { label: 'В работе',   cls: 'adm-status--progress' },
-  closed:      { label: 'Закрыто',    cls: 'adm-status--closed' },
+export const STATUS_CONFIG: Record<ResponseStatus, { label: string; cls: string; color: 'default' | 'primary' | 'warning' | 'success' | 'error' }> = {
+  new:         { label: 'Новая',      cls: 'adm-status--new',      color: 'primary' },
+  called:      { label: 'Позвонили',  cls: 'adm-status--called',   color: 'warning' },
+  in_progress: { label: 'В работе',   cls: 'adm-status--progress', color: 'default' },
+  closed:      { label: 'Закрыто',    cls: 'adm-status--closed',   color: 'success' },
 }
 const STATUS_ORDER: ResponseStatus[] = ['new', 'called', 'in_progress', 'closed']
 
@@ -67,7 +71,12 @@ function exportToCSV(rows: SurveyRecord[], tokens: TokenRecord[]) {
   URL.revokeObjectURL(url)
 }
 
-export function ResponsesTab() {
+interface Props {
+  surveyId: number
+  survey: Survey
+}
+
+export function ResponsesTab({ surveyId, survey }: Props) {
   const [rows, setRows] = useState<SurveyRecord[]>([])
   const [tokens, setTokens] = useState<TokenRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -79,13 +88,14 @@ export function ResponsesTab() {
   const [savingNote, setSavingNote] = useState<number | null>(null)
   const [noteValues, setNoteValues] = useState<Record<number, string>>({})
   const [exporting, setExporting] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<ResponseStatus | 'all'>('all')
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
-  const load = useCallback((p: number) => {
+  const load = useCallback((p: number, filter: ResponseStatus | 'all') => {
     setLoading(true)
     setError('')
-    Promise.all([getResponsesPaged(p), getTokens()])
+    Promise.all([getResponsesPaged(p, PAGE_SIZE, surveyId, filter), getTokens(surveyId)])
       .then(([{ data, total: t }, tkns]) => {
         setRows(data)
         setTotal(t)
@@ -100,7 +110,7 @@ export function ResponsesTab() {
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => { load(page) }, [page, load])
+  useEffect(() => { load(page, statusFilter) }, [page, statusFilter, load])
 
   function emailByToken(token?: string) {
     if (!token) return null
@@ -130,7 +140,7 @@ export function ResponsesTab() {
   async function handleExport() {
     setExporting(true)
     try {
-      const all = await getResponses()
+      const all = await getResponses(surveyId)
       exportToCSV(all, tokens)
     } finally {
       setExporting(false)
@@ -154,11 +164,25 @@ export function ResponsesTab() {
           >
             {exporting ? <span className="adm-spinner" /> : <><CsvIcon /> CSV</>}
           </motion.button>
-          <button className="adm-btn-ghost" onClick={() => load(page)} disabled={loading}>
+          <button className="adm-btn-ghost" onClick={() => load(page, statusFilter)} disabled={loading}>
             {loading ? <span className="adm-spinner" /> : 'Обновить'}
           </button>
         </div>
       </div>
+
+      {/* Status filter */}
+      <Tabs
+        value={statusFilter}
+        onChange={(_, v) => { setStatusFilter(v); setPage(0); setExpanded(null) }}
+        sx={{ mb: 2 }}
+        TabIndicatorProps={{ children: <span /> }}
+      >
+        <Tab value="all"         label="Все" />
+        <Tab value="new"         label="Новые" />
+        <Tab value="called"      label="Позвонили" />
+        <Tab value="in_progress" label="В работе" />
+        <Tab value="closed"      label="Закрыто" />
+      </Tabs>
 
       {error && <p className="adm-err-banner">{error}</p>}
 
@@ -202,7 +226,7 @@ export function ResponsesTab() {
                   </div>
                 </div>
                 <div className="adm-response-right">
-                  <span className={`adm-status-badge ${statusCfg.cls}`}>{statusCfg.label}</span>
+                  <Chip label={statusCfg.label} color={statusCfg.color} size="small" variant="outlined" />
                   <span className="adm-response-date">{formatDate(row.created_at)}</span>
                   <span className={`adm-chevron ${expanded === row.id ? 'adm-chevron--open' : ''}`}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -227,9 +251,20 @@ export function ResponsesTab() {
                       {row.email && <DataRow label="Email" value={row.email} highlight />}
                       {tokenEmail && <DataRow label="Email (источник)" value={tokenEmail} highlight />}
                       <div className="adm-divider" />
-                      <DataRow label="Текущий статус" value={CURRENT_LABELS[row.current_crm] ?? row.current_crm} />
-                      <DataRow label="Цель CRM" value={row.crm_purpose.join(', ')} />
-                      <DataRow label="Использовали раньше" value={row.crm_used_before.join(', ')} />
+                      {/* Ответы на вопросы */}
+                      {row.answers && Object.keys(row.answers).length > 0
+                        ? survey.config.questions.map(q => {
+                            const ans = row.answers![q.id]
+                            if (!ans) return null
+                            const val = Array.isArray(ans) ? ans.join(', ') : String(ans)
+                            return <DataRow key={q.id} label={q.title} value={val} />
+                          })
+                        : <>
+                            <DataRow label="Текущий статус" value={CURRENT_LABELS[row.current_crm] ?? row.current_crm} />
+                            <DataRow label="Цель CRM" value={row.crm_purpose?.join(', ')} />
+                            <DataRow label="Использовали раньше" value={row.crm_used_before?.join(', ')} />
+                          </>
+                      }
                       {row.comment && <DataRow label="Комментарий клиента" value={row.comment} />}
 
                       <div className="adm-divider" />
@@ -258,16 +293,16 @@ export function ResponsesTab() {
                         <span className="adm-data-label">Изменить статус</span>
                         <div className="adm-status-btns">
                           {STATUS_ORDER.map(s => (
-                            <button
+                            <Chip
                               key={s}
-                              className={`adm-status-btn ${STATUS_CONFIG[s].cls} ${rowStatus === s ? 'adm-status-btn--active' : ''}`}
-                              onClick={() => changeStatus(row.id, s)}
-                              disabled={updatingStatus === row.id || rowStatus === s}
-                            >
-                              {updatingStatus === row.id && rowStatus !== s
-                                ? <span className="adm-spinner adm-spinner--sm" />
-                                : STATUS_CONFIG[s].label}
-                            </button>
+                              label={STATUS_CONFIG[s].label}
+                              color={STATUS_CONFIG[s].color}
+                              size="small"
+                              variant={rowStatus === s ? 'filled' : 'outlined'}
+                              onClick={() => rowStatus !== s && changeStatus(row.id, s)}
+                              disabled={updatingStatus === row.id}
+                              sx={{ cursor: rowStatus === s ? 'default' : 'pointer', fontSize: 11 }}
+                            />
                           ))}
                         </div>
                       </div>
@@ -282,23 +317,14 @@ export function ResponsesTab() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="adm-pagination">
-          <button
-            className="adm-btn-ghost adm-pag-btn"
-            onClick={() => setPage(p => p - 1)}
-            disabled={page === 0 || loading}
-          >
-            ← Назад
-          </button>
-          <span className="adm-pag-info">Стр. {page + 1} из {totalPages}</span>
-          <button
-            className="adm-btn-ghost adm-pag-btn"
-            onClick={() => setPage(p => p + 1)}
-            disabled={page >= totalPages - 1 || loading}
-          >
-            Вперёд →
-          </button>
-        </div>
+        <Pagination
+          count={totalPages}
+          page={page + 1}
+          onChange={(_, p) => setPage(p - 1)}
+          disabled={loading}
+          shape="rounded"
+          size="small"
+        />
       )}
     </div>
   )

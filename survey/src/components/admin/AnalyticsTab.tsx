@@ -18,18 +18,22 @@ const STATUS_CONFIG: Record<ResponseStatus, { label: string; cls: string }> = {
 }
 const STATUS_ORDER: ResponseStatus[] = ['new', 'called', 'in_progress', 'closed']
 
-export function AnalyticsTab() {
+interface Props {
+  surveyId: number
+}
+
+export function AnalyticsTab({ surveyId }: Props) {
   const [responses, setResponses] = useState<SurveyRecord[]>([])
   const [tokens, setTokens] = useState<TokenRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    Promise.all([getResponses(), getTokens()])
+    Promise.all([getResponses(surveyId), getTokens(surveyId)])
       .then(([r, t]) => { setResponses(r); setTokens(t) })
       .catch(e => setError(e.message ?? 'Ошибка загрузки'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [surveyId])
 
   if (loading) {
     return (

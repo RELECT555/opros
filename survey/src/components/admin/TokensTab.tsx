@@ -1,9 +1,16 @@
 import { useState, useEffect } from 'react'
 import { motion, easeOut, AnimatePresence } from 'framer-motion'
+import Tabs from '@mui/material/Tabs'
+import Tab from '@mui/material/Tab'
 import { getTokens, createTokens, deleteToken, regenerateToken } from '../../lib/supabase'
 import type { TokenRecord } from '../../lib/supabase'
 
-export function TokensTab() {
+interface Props {
+  surveyId: number
+  surveySlug: string
+}
+
+export function TokensTab({ surveyId, surveySlug }: Props) {
   const [tokens, setTokens] = useState<TokenRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -15,22 +22,30 @@ export function TokensTab() {
 
   const origin = window.location.origin
 
+  function tokenUrl(token: string) {
+    // CRM-опрос (slug='crm') сохраняет обратную совместимость → /?t=...
+    // Остальные опросы → /s/{slug}?t=...
+    return surveySlug === 'crm'
+      ? `${origin}/?t=${token}`
+      : `${origin}/s/${surveySlug}?t=${token}`
+  }
+
   function load() {
     setLoading(true)
-    getTokens()
+    getTokens(surveyId)
       .then(setTokens)
       .catch(e => setError(e.message ?? 'Ошибка загрузки'))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [surveyId])
 
   async function generate() {
     const emails = emailInput.split(/[\n,;]+/).map(e => e.trim()).filter(Boolean)
     if (!emails.length) return
     setGenerating(true)
     try {
-      await createTokens(emails)
+      await createTokens(emails, surveyId)
       setEmailInput('')
       load()
     } catch (e: unknown) {
@@ -48,7 +63,7 @@ export function TokensTab() {
   async function regen(token: string, email: string) {
     setRegenerating(token)
     try {
-      const newToken = await regenerateToken(token, email)
+      const newToken = await regenerateToken(token, email, surveyId)
       setTokens(prev => prev.map(t => t.token === token ? newToken : t))
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Ошибка перегенерации')
@@ -58,7 +73,7 @@ export function TokensTab() {
   }
 
   function copy(token: string) {
-    const url = `${origin}/?t=${token}`
+    const url = tokenUrl(token)
     navigator.clipboard.writeText(url)
     setCopied(token)
     setTimeout(() => setCopied(null), 1800)
@@ -126,21 +141,17 @@ export function TokensTab() {
 
       {/* Stats row */}
       {!loading && tokens.length > 0 && (
-        <div className="tok-stats">
-          {(['all', 'new', 'opened', 'used'] as const).map(k => (
-            <button
-              key={k}
-              className={`tok-stat-btn ${filter === k ? 'tok-stat-btn--active' : ''}`}
-              onClick={() => setFilter(k)}
-            >
-              <span className={`tok-stat-dot tok-stat-dot--${k}`} />
-              <span className="tok-stat-label">{
-                k === 'all' ? 'Все' : k === 'new' ? 'Не открыт' : k === 'opened' ? 'Открыт' : 'Заполнен'
-              }</span>
-              <span className="tok-stat-count">{counts[k]}</span>
-            </button>
-          ))}
-        </div>
+        <Tabs
+          value={filter}
+          onChange={(_, v) => setFilter(v)}
+          sx={{ mb: 1 }}
+          TabIndicatorProps={{ children: <span /> }}
+        >
+          <Tab value="all"    label={`Все ${counts.all}`} />
+          <Tab value="new"    label={`Не открыт ${counts.new}`} />
+          <Tab value="opened" label={`Открыт ${counts.opened}`} />
+          <Tab value="used"   label={`Заполнен ${counts.used}`} />
+        </Tabs>
       )}
 
       {/* Empty state */}
@@ -165,6 +176,7 @@ export function TokensTab() {
           {filtered.map((t, idx) => {
             const status = t.used_at ? 'used' : t.opened_at ? 'opened' : 'new'
             const initials = t.email.slice(0, 2).toUpperCase()
+            const url = tokenUrl(t.token)
             return (
               <motion.div
                 key={t.token}
@@ -182,7 +194,7 @@ export function TokensTab() {
 
                 <div className="adm-token-info">
                   <p className="adm-token-email">{t.email}</p>
-                  <p className="adm-token-url">{origin}/?t={t.token}</p>
+                  <p className="adm-token-url">{url}</p>
                 </div>
 
                 <span className={`adm-token-badge adm-token-badge--${status}`}>

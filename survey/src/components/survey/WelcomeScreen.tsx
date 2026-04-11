@@ -18,7 +18,17 @@ function LockIcon() {
   )
 }
 
-export function WelcomeScreen({ onStart }: { onStart: () => void }) {
+interface WelcomeScreenProps {
+  onStart: () => void
+  title?: string
+  sub?: string
+  questionCount?: number
+}
+
+export function WelcomeScreen({ onStart, title, sub, questionCount }: WelcomeScreenProps) {
+  const displayTitle = title ?? 'Помогите нам стать лучше для вас'
+  const displaySub   = sub ?? `Пройдите короткий опрос из ${questionCount ?? 4} вопросов — и мы свяжемся с вами.`
+
   return (
     <motion.div
       key="welcome"
@@ -46,8 +56,7 @@ export function WelcomeScreen({ onStart }: { onStart: () => void }) {
         transition={{ duration: 0.6, delay: 0.14, ease: easeOut }}
         className="welcome-heading"
       >
-        Помогите нам<br />стать лучше<br />
-        <span className="welcome-heading__accent">для вас</span>
+        {displayTitle}
       </motion.h1>
 
       {/* Sub */}
@@ -57,7 +66,7 @@ export function WelcomeScreen({ onStart }: { onStart: () => void }) {
         transition={{ duration: 0.5, delay: 0.24, ease: easeOut }}
         className="welcome-sub"
       >
-        Пройдите короткий опрос из 4 вопросов —<br />и мы подберём лучшее CRM-решение для вас.
+        {displaySub}
       </motion.p>
 
       {/* CTA */}
