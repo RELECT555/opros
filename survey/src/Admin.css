@@ -843,3 +843,177 @@ body:has(.adm-center) #root {
   height: 12px;
   border-width: 1.5px;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   MANAGER NOTE
+══════════════════════════════════════════════════════════════ */
+.adm-manager-note {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.adm-note-textarea {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.adm-note-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.adm-note-textarea::placeholder { color: var(--text-3); }
+.adm-btn-save-note {
+  align-self: flex-end;
+  padding: 5px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(91,115,249,0.15);
+  color: var(--accent);
+  border: 1px solid rgba(91,115,249,0.3);
+  cursor: pointer;
+  transition: opacity 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.adm-btn-save-note:hover:not(:disabled) { opacity: 0.8; }
+.adm-btn-save-note:disabled { opacity: 0.45; cursor: default; }
+
+/* ══════════════════════════════════════════════════════════════
+   PAGINATION
+══════════════════════════════════════════════════════════════ */
+.adm-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.adm-pag-btn {
+  min-width: 90px;
+}
+.adm-pag-info {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CSV EXPORT BUTTON
+══════════════════════════════════════════════════════════════ */
+.adm-btn-export {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TOKEN REGENERATE BUTTON
+══════════════════════════════════════════════════════════════ */
+.adm-btn-regen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  color: var(--text-2);
+}
+.adm-btn-regen:hover:not(:disabled) { color: var(--accent); }
+
+/* ══════════════════════════════════════════════════════════════
+   ANALYTICS
+══════════════════════════════════════════════════════════════ */
+.adm-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.adm-kpi-grid--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.adm-kpi-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 20px 12px;
+  text-align: center;
+}
+.adm-kpi-card--inline {
+  padding: 14px 12px;
+}
+.adm-kpi-value {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+}
+.adm-kpi-label {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.adm-kpi--new         { color: #a5b4fc; }
+.adm-kpi--called      { color: #fde047; }
+.adm-kpi--in_progress { color: #93c5fd; }
+.adm-kpi--closed      { color: #86efac; }
+
+.adm-analytics-section {
+  margin-bottom: 12px;
+  padding: 20px 24px;
+}
+.adm-analytics-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+
+/* Bar chart */
+.adm-bar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.adm-bar-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+.adm-bar-label {
+  font-size: 13px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.adm-bar-track {
+  height: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.adm-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+.adm-bar-fill--purple { background: var(--accent-2); }
+.adm-bar-fill--green  { background: var(--ok); }
+.adm-bar-count {
+  font-size: 12px;
+  color: var(--text-2);
+  min-width: 24px;
+  text-align: right;
+}

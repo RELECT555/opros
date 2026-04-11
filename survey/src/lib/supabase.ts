@@ -19,6 +19,7 @@ export interface SurveyResponse {
   current_crm: string
   name: string
   phone: string
+  email?: string
   comment?: string
   token?: string
 }
@@ -29,6 +30,7 @@ export interface SurveyRecord extends SurveyResponse {
   id: number
   created_at: string
   status: ResponseStatus
+  manager_note?: string
 }
 
 export interface TokenRecord {
@@ -38,6 +40,70 @@ export interface TokenRecord {
   opened_at: string | null
   used_at: string | null
 }
+
+export const PAGE_SIZE = 20
+
+// ── Responses ──────────────────────────────────────────────────
+
+export async function getResponsesPaged(
+  page: number,
+  pageSize = PAGE_SIZE,
+): Promise<{ data: SurveyRecord[]; total: number }> {
+  const from = page * pageSize
+  const to   = from + pageSize - 1
+  const { data, error, count } = await supabase
+    .from('survey_responses')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, to)
+  if (error) throw error
+  return { data: data as SurveyRecord[], total: count ?? 0 }
+}
+
+/** Загружает все записи — используется для аналитики и CSV-экспорта */
+export async function getResponses(): Promise<SurveyRecord[]> {
+  const { data, error } = await supabase
+    .from('survey_responses')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data as SurveyRecord[]
+}
+
+export async function updateResponseStatus(id: number, status: ResponseStatus): Promise<void> {
+  const { error } = await supabase
+    .from('survey_responses')
+    .update({ status })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function updateManagerNote(id: number, note: string): Promise<void> {
+  const { error } = await supabase
+    .from('survey_responses')
+    .update({ manager_note: note })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function saveSurveyResponse(data: SurveyResponse, attempts = 3): Promise<void> {
+  for (let i = 0; i < attempts; i++) {
+    const { error } = await supabase.from('survey_responses').insert([data])
+    if (!error) {
+      if (data.token) {
+        await supabase
+          .from('survey_tokens')
+          .update({ used_at: new Date().toISOString() })
+          .eq('token', data.token)
+      }
+      return
+    }
+    if (i < attempts - 1) await new Promise(r => setTimeout(r, 800 * (i + 1)))
+    else throw error
+  }
+}
+
+// ── Tokens ─────────────────────────────────────────────────────
 
 export async function getTokens(): Promise<TokenRecord[]> {
   const { data, error } = await supabase
@@ -66,6 +132,13 @@ export async function deleteToken(token: string): Promise<void> {
   if (error) throw error
 }
 
+/** Удаляет старый токен и создаёт новый с тем же email */
+export async function regenerateToken(oldToken: string, email: string): Promise<TokenRecord> {
+  await deleteToken(oldToken)
+  const [record] = await createTokens([email])
+  return record
+}
+
 export async function resolveToken(token: string): Promise<string | null> {
   const { data, error } = await supabase
     .from('survey_tokens')
@@ -76,14 +149,6 @@ export async function resolveToken(token: string): Promise<string | null> {
   return (data as { email: string }).email
 }
 
-export async function updateResponseStatus(id: number, status: ResponseStatus): Promise<void> {
-  const { error } = await supabase
-    .from('survey_responses')
-    .update({ status })
-    .eq('id', id)
-  if (error) throw error
-}
-
 export async function markTokenOpened(token: string): Promise<void> {
   await supabase
     .from('survey_tokens')
@@ -92,14 +157,7 @@ export async function markTokenOpened(token: string): Promise<void> {
     .is('opened_at', null) // только если ещё не помечен
 }
 
-export async function getResponses(): Promise<SurveyRecord[]> {
-  const { data, error } = await supabase
-    .from('survey_responses')
-    .select('*')
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return data as SurveyRecord[]
-}
+// ── Config ─────────────────────────────────────────────────────
 
 export async function getConfig(): Promise<Record<string, unknown> | null> {
   const { data, error } = await supabase
@@ -116,21 +174,4 @@ export async function setConfig(config: unknown): Promise<void> {
     .from('survey_config')
     .upsert({ id: 1, config })
   if (error) throw error
-}
-
-export async function saveSurveyResponse(data: SurveyResponse, attempts = 3): Promise<void> {
-  for (let i = 0; i < attempts; i++) {
-    const { error } = await supabase.from('survey_responses').insert([data])
-    if (!error) {
-      if (data.token) {
-        await supabase
-          .from('survey_tokens')
-          .update({ used_at: new Date().toISOString() })
-          .eq('token', data.token)
-      }
-      return
-    }
-    if (i < attempts - 1) await new Promise(r => setTimeout(r, 800 * (i + 1)))
-    else throw error
-  }
 }
