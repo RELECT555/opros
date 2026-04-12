@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
 import Pagination from '@mui/material/Pagination'
-import Chip from '@mui/material/Chip'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import {
@@ -18,11 +17,21 @@ const CURRENT_LABELS: Record<string, string> = {
   switching: 'Хотим сменить текущую',
 }
 
-export const STATUS_CONFIG: Record<ResponseStatus, { label: string; cls: string; color: 'default' | 'primary' | 'warning' | 'success' | 'error' }> = {
-  new:         { label: 'Новая',      cls: 'adm-status--new',      color: 'primary' },
-  called:      { label: 'Позвонили',  cls: 'adm-status--called',   color: 'warning' },
-  in_progress: { label: 'В работе',   cls: 'adm-status--progress', color: 'default' },
-  closed:      { label: 'Закрыто',    cls: 'adm-status--closed',   color: 'success' },
+export const STATUS_CONFIG: Record<ResponseStatus, { label: string; cls: string }> = {
+  new:         { label: 'Новая',      cls: 'adm-status--new' },
+  called:      { label: 'Позвонили',  cls: 'adm-status--called' },
+  in_progress: { label: 'В работе',   cls: 'adm-status--progress' },
+  closed:      { label: 'Закрыто',    cls: 'adm-status--closed' },
+}
+
+function StatusBadge({ status, size = 'sm' }: { status: ResponseStatus; size?: 'sm' | 'md' }) {
+  const cfg = STATUS_CONFIG[status]
+  return (
+    <span className={`adm-status-badge ${cfg.cls} ${size === 'md' ? 'adm-status-badge--md' : ''}`}>
+      <span className="adm-status-dot" />
+      {cfg.label}
+    </span>
+  )
 }
 const STATUS_ORDER: ResponseStatus[] = ['new', 'called', 'in_progress', 'closed']
 
@@ -226,7 +235,7 @@ export function ResponsesTab({ surveyId, survey }: Props) {
                   </div>
                 </div>
                 <div className="adm-response-right">
-                  <Chip label={statusCfg.label} color={statusCfg.color} size="small" variant="outlined" />
+                  <StatusBadge status={rowStatus} />
                   <span className="adm-response-date">{formatDate(row.created_at)}</span>
                   <span className={`adm-chevron ${expanded === row.id ? 'adm-chevron--open' : ''}`}>
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -255,8 +264,18 @@ export function ResponsesTab({ surveyId, survey }: Props) {
                       {row.answers && Object.keys(row.answers).length > 0
                         ? survey.config.questions.map(q => {
                             const ans = row.answers![q.id]
-                            if (!ans) return null
-                            const val = Array.isArray(ans) ? ans.join(', ') : String(ans)
+                            if (ans === undefined || ans === null || ans === '' || (Array.isArray(ans) && ans.length === 0)) return null
+                            const otherText = row.answers![q.id + '__other'] as string | undefined
+                            let val: string
+                            if (Array.isArray(ans)) {
+                              val = ans
+                                .map(v => v === '__other__' ? (otherText ? `Другое: ${otherText}` : 'Другое') : v)
+                                .join(', ')
+                            } else if (ans === '__other__') {
+                              val = otherText ? `Другое: ${otherText}` : 'Другое'
+                            } else {
+                              val = String(ans)
+                            }
                             return <DataRow key={q.id} label={q.title} value={val} />
                           })
                         : <>
@@ -293,16 +312,15 @@ export function ResponsesTab({ surveyId, survey }: Props) {
                         <span className="adm-data-label">Изменить статус</span>
                         <div className="adm-status-btns">
                           {STATUS_ORDER.map(s => (
-                            <Chip
+                            <button
                               key={s}
-                              label={STATUS_CONFIG[s].label}
-                              color={STATUS_CONFIG[s].color}
-                              size="small"
-                              variant={rowStatus === s ? 'filled' : 'outlined'}
+                              className={`adm-status-btn ${STATUS_CONFIG[s].cls} ${rowStatus === s ? 'adm-status-btn--active' : ''}`}
                               onClick={() => rowStatus !== s && changeStatus(row.id, s)}
                               disabled={updatingStatus === row.id}
-                              sx={{ cursor: rowStatus === s ? 'default' : 'pointer', fontSize: 11 }}
-                            />
+                            >
+                              <span className="adm-status-dot" />
+                              {STATUS_CONFIG[s].label}
+                            </button>
                           ))}
                         </div>
                       </div>

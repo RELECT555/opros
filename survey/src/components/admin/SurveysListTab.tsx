@@ -86,12 +86,22 @@ export function SurveysListTab({ onSelect }: Props) {
 
   return (
     <div className="adm-tab-content">
-      <div className="adm-section-head">
-        <div className="adm-section-title-row">
-          <h2 className="adm-section-title">Опросники</h2>
-          <span className="adm-count-badge">{surveys.length}</span>
+      <div className="qed-header">
+        <div className="qed-header-left">
+          <div className="qed-header-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+              <rect x="9" y="1.5" width="5.5" height="5.5" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+              <rect x="1.5" y="9" width="5.5" height="5.5" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+              <rect x="9" y="9" width="5.5" height="5.5" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+            </svg>
+          </div>
+          <div>
+            <h2 className="qed-header-title">Опросники</h2>
+            <p className="qed-header-sub">{surveys.length} {surveys.length === 1 ? 'опросник' : surveys.length < 5 ? 'опросника' : 'опросников'}</p>
+          </div>
         </div>
-        <button className="adm-btn-primary" onClick={() => setShowForm(v => !v)}>
+        <button className="qed-add-btn" onClick={() => setShowForm(v => !v)}>
           {showForm ? 'Отмена' : (
             <>
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -168,11 +178,11 @@ export function SurveysListTab({ onSelect }: Props) {
                 После создания добавьте вопросы во вкладке «Вопросы»
               </p>
               <button
-                className="adm-btn-primary surveys-create-btn"
+                className="surveys-create-btn"
                 onClick={handleCreate}
                 disabled={creating || !newTitle.trim() || !newSlug.trim()}
               >
-                {creating ? <span className="adm-spinner" /> : (
+                {creating ? <span className="adm-spinner adm-spinner--sm" /> : (
                   <>
                     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                       <path d="M6.5 2v9M2 6.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>

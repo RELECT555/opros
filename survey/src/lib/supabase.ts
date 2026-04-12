@@ -17,16 +17,33 @@ export const supabase = createClient(url ?? 'https://placeholder.supabase.co', k
 
 export interface SurveyQuestion {
   id: string
-  type: 'checkbox' | 'radio'
+  type: 'checkbox' | 'radio' | 'text' | 'scale'
   title: string
   subtitle?: string
   options: string[]
+  hasOther?: boolean
+  scaleMin?: number
+  scaleMax?: number
+}
+
+export interface SurveyDesign {
+  accent?:    string
+  accent2?:   string
+  bg?:        string
+  orb1?:      string
+  orb2?:      string
+  text?:      string
+  text2?:     string
+  logo_url?:  string
+  btn_label?: string
+  preset?:    string
 }
 
 export interface SurveyConfigData {
   welcome_title?: string
   welcome_sub?: string
   questions: SurveyQuestion[]
+  design?: SurveyDesign
 }
 
 export interface Survey {
@@ -330,5 +347,24 @@ export async function setConfig(config: unknown): Promise<void> {
   const { error } = await supabase
     .from('survey_config')
     .upsert({ id: 1, config })
+  if (error) throw error
+}
+
+// ── Global admin theme (id=2 in survey_config) ──
+
+export async function getGlobalTheme(): Promise<Record<string, unknown> | null> {
+  const { data, error } = await supabase
+    .from('survey_config')
+    .select('config')
+    .eq('id', 2)
+    .single()
+  if (error || !data) return null
+  return (data as { config: Record<string, unknown> }).config
+}
+
+export async function setGlobalTheme(theme: unknown): Promise<void> {
+  const { error } = await supabase
+    .from('survey_config')
+    .upsert({ id: 2, config: theme })
   if (error) throw error
 }

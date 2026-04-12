@@ -1,7 +1,30 @@
 import { useState, useEffect, memo } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { getSurveyBySlug, saveSurveyResponseGeneric, markTokenOpened } from '../lib/supabase'
-import type { Survey } from '../lib/supabase'
+import type { Survey, SurveyDesign } from '../lib/supabase'
+
+function applySurveyDesign(d?: SurveyDesign) {
+  if (!d) return
+  const styleId = 'survey-design-vars'
+  let el = document.getElementById(styleId) as HTMLStyleElement | null
+  if (!el) { el = document.createElement('style'); el.id = styleId; document.head.appendChild(el) }
+  const accent  = d.accent  ?? '#5b73f9'
+  const accent2 = d.accent2 ?? '#9b6dff'
+  const bg      = d.bg      ?? '#07070d'
+  const orb1    = d.orb1    ?? '#5b73f9'
+  const orb2    = d.orb2    ?? '#9b6dff'
+  const text    = d.text    ?? '#eaeaf8'
+  const text2   = d.text2   ?? '#8a8aaa'
+  el.textContent = `
+    :root {
+      --accent: ${accent}; --accent-2: ${accent2}; --bg: ${bg};
+      --text: ${text}; --text-2: ${text2};
+    }
+    body  { background: ${bg}; color: ${text}; }
+    .bg-orb--1 { background: radial-gradient(circle, ${orb1} 0%, transparent 70%) !important; }
+    .bg-orb--2 { background: radial-gradient(circle, ${orb2} 0%, transparent 70%) !important; }
+  `
+}
 import { SparklesCore } from '../components/ui/sparkles'
 import { DottedSurface } from '../components/ui/dotted-surface'
 import { WelcomeScreen } from '../components/survey/WelcomeScreen'
@@ -46,6 +69,7 @@ export default function SurveyPage({ slug }: Props) {
         setSurvey(s)
         setForm(emptyFormData(s.config.questions))
         if (token) markTokenOpened(token)
+        applySurveyDesign(s.config.design)
       })
       .catch(e => setLoadError(e.message ?? 'Ошибка загрузки опроса'))
   }, [slug])
@@ -69,23 +93,20 @@ export default function SurveyPage({ slug }: Props) {
   const questions = survey.config.questions
   const validPhone = /^[\d\s\+\-\(\)]{7,}$/.test(form.phone.trim())
 
+  function isAnswered(q: typeof questions[number]): boolean {
+    if (q.type === 'checkbox') return ((form.answers[q.id] as string[]) ?? []).length > 0
+    return !!(form.answers[q.id])
+  }
+
   const answeredSections = [
-    ...questions.map(q =>
-      q.type === 'checkbox'
-        ? (form.answers[q.id] as string[])?.length > 0
-        : !!(form.answers[q.id])
-    ),
+    ...questions.map(q => isAnswered(q)),
     form.name.trim().length > 0 && validPhone,
   ].filter(Boolean).length
 
   const totalSections = questions.length + 1
 
   const canSubmit =
-    questions.every(q =>
-      q.type === 'checkbox'
-        ? (form.answers[q.id] as string[])?.length > 0
-        : !!(form.answers[q.id])
-    ) &&
+    questions.every(q => isAnswered(q)) &&
     form.name.trim().length > 0 &&
     validPhone &&
     consent
@@ -117,8 +138,10 @@ export default function SurveyPage({ slug }: Props) {
     setConsent(false)
   }
 
-  const welcomeTitle = survey.config.welcome_title ?? 'Пройдите опрос'
-  const welcomeSub   = survey.config.welcome_sub   ?? survey.description ?? ''
+  const welcomeTitle  = survey.config.welcome_title ?? 'Пройдите опрос'
+  const welcomeSub    = survey.config.welcome_sub   ?? survey.description ?? ''
+  const welcomeBtn    = survey.config.design?.btn_label?.trim() || undefined
+  const welcomeLogo   = survey.config.design?.logo_url?.trim()  || undefined
 
   return (
     <div className="root">
@@ -142,6 +165,8 @@ export default function SurveyPage({ slug }: Props) {
             title={welcomeTitle}
             sub={welcomeSub}
             questionCount={totalSections}
+            btnLabel={welcomeBtn}
+            logoUrl={welcomeLogo}
           />
         ) : status === 'done' ? (
           <SuccessScreen key="done" onReset={handleReset} />

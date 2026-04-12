@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
 import type { SurveyQuestion } from '../../lib/supabase'
 
@@ -14,6 +13,7 @@ export function emptyFormData(questions: SurveyQuestion[]): DynamicFormData {
   const answers: Record<string, string | string[]> = {}
   for (const q of questions) {
     answers[q.id] = q.type === 'checkbox' ? [] : ''
+    if (q.hasOther) answers[q.id + '__other'] = ''
   }
   return { answers, name: '', phone: '', email: '', comment: '' }
 }
@@ -29,6 +29,23 @@ const fadeUp = {
 
 function toggle(arr: string[], val: string) {
   return arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]
+}
+
+function scaleColor(ratio: number): string {
+  // 0 → #5b73f9, 0.6 → #9b6dff, 1 → #c084fc
+  if (ratio < 0.6) {
+    const t = ratio / 0.6
+    const r = Math.round(91 + (155 - 91) * t)
+    const g = Math.round(115 + (109 - 115) * t)
+    const b = Math.round(249 + (255 - 249) * t)
+    return `rgb(${r},${g},${b})`
+  } else {
+    const t = (ratio - 0.6) / 0.4
+    const r = Math.round(155 + (192 - 155) * t)
+    const g = Math.round(109 + (132 - 109) * t)
+    const b = Math.round(255 + (252 - 255) * t)
+    return `rgb(${r},${g},${b})`
+  }
 }
 
 interface Props {
@@ -51,12 +68,15 @@ export function DynamicSurveyForm({
 }: Props) {
   const totalSections = questions.length + 1 // вопросы + контакты
 
+  function isAnswered(q: SurveyQuestion): boolean {
+    if (q.type === 'checkbox') return (form.answers[q.id] as string[]).length > 0
+    return !!(form.answers[q.id])
+  }
+
   const steps = [
-    ...questions.map((q, i) => ({
+    ...questions.map((q) => ({
       label: q.title,
-      done: q.type === 'checkbox'
-        ? (form.answers[q.id] as string[]).length > 0
-        : !!form.answers[q.id],
+      done: isAnswered(q),
     })),
     {
       label: 'Контакты',
@@ -132,9 +152,8 @@ export function DynamicSurveyForm({
       {/* Dynamic questions */}
       {questions.map((q, idx) => {
         const answer = form.answers[q.id]
-        const isDone = q.type === 'checkbox'
-          ? (answer as string[]).length > 0
-          : !!answer
+        const otherText = (form.answers[q.id + '__other'] ?? '') as string
+        const isDone = isAnswered(q)
 
         return (
           <motion.div
@@ -199,6 +218,52 @@ export function DynamicSurveyForm({
                     </motion.button>
                   )
                 })}
+                {q.hasOther && (() => {
+                  const sel = (answer as string[]).includes('__other__')
+                  return (
+                    <>
+                      <motion.button
+                        className={`chip ${sel ? 'chip--on' : ''}`}
+                        onClick={() => setForm({
+                          ...form,
+                          answers: { ...form.answers, [q.id]: toggle(answer as string[], '__other__') },
+                        })}
+                        whileTap={{ scale: 0.94 }}
+                      >
+                        <span className="chip-ctrl">
+                          <AnimatePresence>
+                            {sel && (
+                              <motion.svg key="check" width="8" height="8" viewBox="0 0 8 8" fill="none"
+                                initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }}
+                                transition={{ duration: 0.15 }}
+                              >
+                                <path d="M1 4l2 2 4-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </motion.svg>
+                            )}
+                          </AnimatePresence>
+                        </span>
+                        Другое
+                      </motion.button>
+                      <AnimatePresence>
+                        {sel && (
+                          <motion.div
+                            className="other-input-wrap"
+                            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <input
+                              className="other-input"
+                              type="text"
+                              placeholder="Укажите свой вариант..."
+                              value={otherText}
+                              onChange={e => setForm({ ...form, answers: { ...form.answers, [q.id + '__other']: e.target.value } })}
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </>
+                  )
+                })()}
               </div>
             )}
 
@@ -233,8 +298,134 @@ export function DynamicSurveyForm({
                     </span>
                   </motion.button>
                 ))}
+                {q.hasOther && (() => {
+                  const sel = answer === '__other__'
+                  return (
+                    <>
+                      <motion.button
+                        className={`radio-btn ${sel ? 'radio-btn--on' : ''}`}
+                        onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: '__other__' } })}
+                        whileTap={{ scale: 0.985 }}
+                      >
+                        <span className="radio-circle">
+                          <AnimatePresence>
+                            {sel && (
+                              <motion.span key="dot" className="radio-circle-dot"
+                                initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+                                transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                              />
+                            )}
+                          </AnimatePresence>
+                        </span>
+                        <span className="radio-idx">{String(q.options.length + 1).padStart(2, '0')}</span>
+                        <span className="radio-label">Другое</span>
+                        <span className="radio-arrow">
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </span>
+                      </motion.button>
+                      <AnimatePresence>
+                        {sel && (
+                          <motion.div
+                            className="other-input-wrap"
+                            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <input
+                              className="other-input"
+                              type="text"
+                              placeholder="Укажите свой вариант..."
+                              value={otherText}
+                              onChange={e => setForm({ ...form, answers: { ...form.answers, [q.id + '__other']: e.target.value } })}
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </>
+                  )
+                })()}
               </div>
             )}
+
+            {q.type === 'text' && (
+              <div className="text-answer-wrap">
+                <textarea
+                  className="text-answer"
+                  placeholder="Введите ваш ответ..."
+                  rows={3}
+                  value={answer as string}
+                  onChange={e => setForm({ ...form, answers: { ...form.answers, [q.id]: e.target.value } })}
+                />
+              </div>
+            )}
+
+            {q.type === 'scale' && (() => {
+              const min = q.scaleMin ?? 1
+              const max = q.scaleMax ?? 10
+              const ticks = Array.from({ length: max - min + 1 }, (_, i) => i + min)
+              const selected = answer ? Number(answer) : null
+              const fillPct = selected !== null
+                ? ((selected - min) / (max - min)) * 100
+                : 0
+              return (
+                <div className="scale-wrap">
+                  {/* Track */}
+                  <div className="scale-track-wrap">
+                    <div className="scale-track">
+                      <motion.div
+                        className="scale-track-fill"
+                        animate={{ width: selected !== null ? `${fillPct}%` : '0%' }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                      />
+                      {/* Thumb */}
+                      {selected !== null && (
+                        <motion.div
+                          className="scale-thumb"
+                          animate={{ left: `${fillPct}%` }}
+                          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                          style={{ background: scaleColor((selected - min) / (max - min)) }}
+                        >
+                          <span className="scale-thumb-val">{selected}</span>
+                        </motion.div>
+                      )}
+                    </div>
+                    {/* Click zones */}
+                    <div className="scale-ticks-overlay">
+                      {ticks.map(n => (
+                        <button
+                          key={n}
+                          className="scale-tick-zone"
+                          onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: String(n) } })}
+                          aria-label={String(n)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {/* Numbers */}
+                  <div className="scale-numbers">
+                    {ticks.map(n => {
+                      const isOn = selected === n
+                      const isPast = selected !== null && n <= selected
+                      return (
+                        <button
+                          key={n}
+                          className={`scale-num ${isOn ? 'scale-num--on' : ''} ${isPast && !isOn ? 'scale-num--past' : ''}`}
+                          style={isOn ? { color: scaleColor((n - min) / (max - min)) } : {}}
+                          onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: String(n) } })}
+                        >
+                          {isOn ? <span>{n}</span> : n}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="scale-labels">
+                    <span>Низко</span>
+                    <span>Высоко</span>
+                  </div>
+                </div>
+              )
+            })()}
           </motion.div>
         )
       })}

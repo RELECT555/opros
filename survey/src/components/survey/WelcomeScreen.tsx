@@ -23,11 +23,14 @@ interface WelcomeScreenProps {
   title?: string
   sub?: string
   questionCount?: number
+  btnLabel?: string
+  logoUrl?: string
 }
 
-export function WelcomeScreen({ onStart, title, sub, questionCount }: WelcomeScreenProps) {
-  const displayTitle = title ?? 'Помогите нам стать лучше для вас'
-  const displaySub   = sub ?? `Пройдите короткий опрос из ${questionCount ?? 4} вопросов — и мы свяжемся с вами.`
+export function WelcomeScreen({ onStart, title, sub, questionCount, btnLabel, logoUrl }: WelcomeScreenProps) {
+  const displayTitle  = title    ?? 'Помогите нам стать лучше для вас'
+  const displaySub    = sub      ?? `Пройдите короткий опрос из ${questionCount ?? 4} вопросов — и мы свяжемся с вами.`
+  const displayBtn    = btnLabel ?? 'Начать опрос'
 
   return (
     <motion.div
@@ -38,6 +41,19 @@ export function WelcomeScreen({ onStart, title, sub, questionCount }: WelcomeScr
       transition={{ duration: 0.45, ease: easeOut }}
       className="welcome-wrap"
     >
+      {/* Logo */}
+      {logoUrl && (
+        <motion.img
+          src={logoUrl}
+          alt="logo"
+          className="welcome-logo"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: easeOut }}
+          onError={e => (e.currentTarget.style.display = 'none')}
+        />
+      )}
+
       {/* Badge */}
       <motion.div
         initial={{ opacity: 0, y: 16, scale: 0.95 }}
@@ -82,7 +98,7 @@ export function WelcomeScreen({ onStart, title, sub, questionCount }: WelcomeScr
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
         >
-          Начать опрос
+          {displayBtn}
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="welcome-cta__arrow">
             <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>

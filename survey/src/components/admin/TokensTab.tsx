@@ -186,9 +186,7 @@ export function TokensTab({ surveyId, surveySlug }: Props) {
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
                 transition={{ duration: 0.25, delay: idx * 0.025, ease: easeOut }}
               >
-                <div className={`tok-row-accent tok-row-accent--${status}`} />
-
-                <div className="tok-avatar">
+                <div className={`tok-avatar tok-avatar--${status}`}>
                   <span>{initials}</span>
                 </div>
 
@@ -198,7 +196,7 @@ export function TokensTab({ surveyId, surveySlug }: Props) {
                 </div>
 
                 <span className={`adm-token-badge adm-token-badge--${status}`}>
-                  <span className={`tok-badge-dot tok-badge-dot--${status}`} />
+                  <span className="adm-token-badge-dot" />
                   {status === 'used' ? 'Заполнен' : status === 'opened' ? 'Открыт' : 'Не открыт'}
                 </span>
 
