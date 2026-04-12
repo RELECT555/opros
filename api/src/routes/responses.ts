@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { query, queryOne } from '../db/client.js'
 import { requireAdminKey } from '../middleware/auth.js'
 import { sendTelegramNotification } from '../services/telegram.js'
+import { httpLog } from '../logger.js'
 
 const PAGE_SIZE = 20
 
@@ -58,7 +59,7 @@ export async function responsesRoutes(app: FastifyInstance) {
     }
 
     // Telegram уведомление
-    sendTelegramNotification({ type: 'new_response', data: row }).catch(console.error)
+    sendTelegramNotification({ type: 'new_response', data: row }).catch((err) => httpLog.error({ err }, 'telegram: не удалось отправить уведомление о новом ответе'))
 
     reply.code(201).send(row)
   })
@@ -115,7 +116,7 @@ export async function responsesRoutes(app: FastifyInstance) {
         `update survey_responses set status = $1 where id = $2 returning *`,
         [req.body.status, req.params.id],
       )
-      sendTelegramNotification({ type: 'status_change', data: row }).catch(console.error)
+      sendTelegramNotification({ type: 'status_change', data: row }).catch((err) => httpLog.error({ err }, 'telegram: не удалось отправить уведомление о смене статуса'))
       reply.send(row)
     },
   )

@@ -239,8 +239,9 @@ export async function saveSurveyResponse(data: SurveyResponse, attempts = 3): Pr
       }
       return
     }
+    console.error('saveSurveyResponse error:', error)
     if (i < attempts - 1) await new Promise(r => setTimeout(r, 800 * (i + 1)))
-    else throw error
+    else throw new Error(error.message ?? 'Ошибка отправки данных')
   }
 }
 
@@ -270,8 +271,9 @@ export async function saveSurveyResponseGeneric(data: GenericSurveyResponse, att
       }
       return
     }
+    console.error('saveSurveyResponseGeneric error:', error)
     if (i < attempts - 1) await new Promise(r => setTimeout(r, 800 * (i + 1)))
-    else throw error
+    else throw new Error(error.message ?? 'Ошибка отправки данных')
   }
 }
 

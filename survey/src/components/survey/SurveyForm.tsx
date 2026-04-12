@@ -70,7 +70,7 @@ export function SurveyForm({
         <div className="hcard-glow hcard-glow--2" aria-hidden="true" />
         <div className="hcard-body">
           <div className="hcard-top">
-            <p className="eyebrow">CRM-консультация</p>
+            <p className="eyebrow">Askly</p>
             <div className="hcard-counter">
               <motion.span
                 className="hcard-counter-num"

@@ -1,11 +1,12 @@
 import 'dotenv/config'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
+import { logger } from './logger.js'
 import { surveysRoutes }  from './routes/surveys.js'
 import { responsesRoutes } from './routes/responses.js'
 import { tokensRoutes }    from './routes/tokens.js'
 
-const app = Fastify({ logger: true })
+const app = Fastify({ loggerInstance: logger })
 
 // CORS — разрешаем фронтенду обращаться к API
 await app.register(cors, {
@@ -26,4 +27,4 @@ app.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }))
 const port = Number(process.env.PORT ?? 3001)
 await app.listen({ port, host: '0.0.0.0' })
 
-console.log(`✅ API запущен на http://localhost:${port}`)
+logger.info({ port }, '✅ API запущен')

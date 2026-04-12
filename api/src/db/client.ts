@@ -1,10 +1,11 @@
 import pg from 'pg'
 import 'dotenv/config'
+import { dbLog } from '../logger.js'
 
 const { Pool } = pg
 
 if (!process.env.DATABASE_URL) {
-  console.error('❌ DATABASE_URL не задан в .env')
+  dbLog.fatal('DATABASE_URL не задан в .env — выход')
   process.exit(1)
 }
 
@@ -14,9 +15,8 @@ export const db = new Pool({
   idleTimeoutMillis: 30_000,
 })
 
-db.on('error', (err) => {
-  console.error('PostgreSQL pool error:', err)
-})
+db.on('connect', () => dbLog.debug('новое соединение из пула'))
+db.on('error', (err) => dbLog.error({ err }, 'PostgreSQL pool error'))
 
 /** Простой хелпер для типизированных запросов */
 export async function query<T = Record<string, unknown>>(

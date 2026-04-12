@@ -2,6 +2,7 @@
  * Telegram-уведомления — аналог текущей Supabase Edge Function.
  * Вызывается из routes/responses.ts при новых ответах и смене статуса.
  */
+import { telegramLog } from '../logger.js'
 
 const STATUS_LABELS: Record<string, string> = {
   new:         '🆕 Новая',
@@ -39,7 +40,9 @@ export async function sendTelegramNotification({ type, data }: NotifyPayload) {
     ].join('\n')
   }
 
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  telegramLog.debug({ type, chat_id: chatId }, 'отправка уведомления')
+
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -48,4 +51,11 @@ export async function sendTelegramNotification({ type, data }: NotifyPayload) {
       parse_mode: 'Markdown',
     }),
   })
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    telegramLog.error({ status: res.status, body, type }, 'Telegram API вернул ошибку')
+  } else {
+    telegramLog.debug({ type }, 'уведомление доставлено')
+  }
 }

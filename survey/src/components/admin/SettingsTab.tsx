@@ -4,8 +4,8 @@ import { SavedIcon } from './shared'
 import { setGlobalTheme, getGlobalTheme } from '../../lib/supabase'
 
 /* ── Storage keys ── */
-const SETTINGS_KEY = 'opros_app_settings_v1'
-const THEME_KEY    = 'opros_admin_theme_v1'
+const SETTINGS_KEY = 'askly_app_settings_v1'
+const THEME_KEY    = 'askly_admin_theme_v1'
 
 /* ── Survey appearance settings ── */
 export interface AppSettings {
@@ -183,7 +183,7 @@ export function SettingsTab() {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: settings.tg_chat_id, text: '✅ Opros: тестовое уведомление. Интеграция работает.' }),
+        body: JSON.stringify({ chat_id: settings.tg_chat_id, text: '✅ Askly: тестовое уведомление. Интеграция работает.' }),
       })
       const json = await res.json()
       if (json.ok) setTgTestResult({ ok: true,  msg: 'Сообщение отправлено' })
