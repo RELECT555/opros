@@ -40,6 +40,7 @@ export function saveAppSettings(s: AppSettings): void {
 
 /* ── Admin theme ── */
 export type AdminUiMode = 'dark' | 'light'
+export type AdminFxMode = 'full' | 'lite'
 
 export interface AdminTheme {
   accent:   string
@@ -49,7 +50,7 @@ export interface AdminTheme {
   orb2:     string
 }
 
-export type AdminThemeStored = AdminTheme & { preset?: string; uiMode?: AdminUiMode }
+export type AdminThemeStored = AdminTheme & { preset?: string; uiMode?: AdminUiMode; fxMode?: AdminFxMode }
 
 export interface AdminThemePreset {
   id:    string
@@ -81,11 +82,12 @@ export function loadAdminTheme(): AdminThemeStored {
         ...THEME_DEFAULT,
         preset: 'indigo',
         uiMode: 'dark',
+        fxMode: 'full',
         ...parsed,
       }
     }
   } catch { /* ignore */ }
-  return { ...THEME_DEFAULT, preset: 'indigo', uiMode: 'dark' }
+  return { ...THEME_DEFAULT, preset: 'indigo', uiMode: 'dark', fxMode: 'full' }
 }
 
 export function saveAdminTheme(t: AdminThemeStored): void {
@@ -113,7 +115,9 @@ export function resolveStoredBg(t: AdminThemeStored, mode: AdminUiMode): string 
 
 export function applyAdminTheme(t: AdminThemeStored): void {
   const mode: AdminUiMode = t.uiMode === 'light' ? 'light' : 'dark'
+  const fxMode: AdminFxMode = t.fxMode === 'lite' ? 'lite' : 'full'
   document.documentElement.setAttribute('data-adm-mode', mode)
+  document.documentElement.setAttribute('data-adm-fx', fxMode)
   document.documentElement.style.colorScheme = mode === 'light' ? 'light' : 'dark'
 
   const bg = resolveStoredBg(t, mode)
@@ -129,6 +133,7 @@ export function applyAdminTheme(t: AdminThemeStored): void {
 
   targets.forEach(el => {
     el.setAttribute('data-adm-mode', mode)
+    el.setAttribute('data-adm-fx', fxMode)
     Object.entries(vars).forEach(([k, v]) => el.style.setProperty(k, v))
     el.style.removeProperty('background')
   })
@@ -212,11 +217,17 @@ export function SettingsTab() {
     setPublished(false)
   }
 
+  function setFxMode(mode: AdminFxMode) {
+    if (theme.fxMode === mode) return
+    setTheme({ ...theme, fxMode: mode })
+    setPublished(false)
+  }
+
   async function publishTheme() {
     setPublishing(true)
     setPublishErr(null)
     try {
-      const { uiMode: _omit, ...forRemote } = theme
+      const { uiMode: _omitUi, fxMode: _omitFx, ...forRemote } = theme
       await setGlobalTheme(forRemote)
       setPublished(true)
       setTimeout(() => setPublished(false), 3000)
@@ -286,6 +297,23 @@ export function SettingsTab() {
             onClick={() => setUiMode('light')}
           >
             Светлая
+          </button>
+        </div>
+
+        <div className="set-ui-mode-row" role="group" aria-label="Режим производительности интерфейса">
+          <button
+            type="button"
+            className={`set-ui-mode-btn ${theme.fxMode !== 'lite' ? 'set-ui-mode-btn--active' : ''}`}
+            onClick={() => setFxMode('full')}
+          >
+            Полные эффекты
+          </button>
+          <button
+            type="button"
+            className={`set-ui-mode-btn ${theme.fxMode === 'lite' ? 'set-ui-mode-btn--active' : ''}`}
+            onClick={() => setFxMode('lite')}
+          >
+            Лёгкий режим
           </button>
         </div>
 

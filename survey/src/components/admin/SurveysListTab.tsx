@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
-import { getSurveys, createSurvey } from '../../lib/supabase'
+import { getSurveys, createSurvey, updateSurveyConfig } from '../../lib/supabase'
 import type { Survey, SurveyConfigData } from '../../lib/supabase'
+import { SurveysListSkeleton } from './AdminSkeletons'
+import { SURVEY_STICKER_PRESETS, SURVEY_STICKER_MAX_LEN, getSurveyStickerIcon } from '../../lib/surveyStickers'
 
 interface Props {
   onSelect: (survey: Survey) => void
@@ -27,6 +29,9 @@ export function SurveysListTab({ onSelect }: Props) {
   const [newSlug, setNewSlug] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [slugManual, setSlugManual] = useState(false)
+  const [stickerPickerFor, setStickerPickerFor] = useState<number | null>(null)
+  const [stickerSavingFor, setStickerSavingFor] = useState<number | null>(null)
+  const stickerPickerRef = useRef<HTMLDivElement | null>(null)
 
   function load() {
     setLoading(true)
@@ -37,6 +42,24 @@ export function SurveysListTab({ onSelect }: Props) {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (stickerPickerFor === null) return
+    function onPointerDown(event: MouseEvent) {
+      if (!stickerPickerRef.current) return
+      if (stickerPickerRef.current.contains(event.target as Node)) return
+      setStickerPickerFor(null)
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setStickerPickerFor(null)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [stickerPickerFor])
 
   function handleTitleChange(v: string) {
     setNewTitle(v)
@@ -74,14 +97,32 @@ export function SurveysListTab({ onSelect }: Props) {
     }
   }
 
+  function surveySticker(survey: Survey): string {
+    return survey.config.sticker?.trim() ?? ''
+  }
+
+  async function handleStickerPick(survey: Survey, sticker: string) {
+    const trimmed = sticker.trim().slice(0, SURVEY_STICKER_MAX_LEN)
+    const nextConfig: SurveyConfigData = { ...survey.config }
+    if (trimmed) nextConfig.sticker = trimmed
+    else delete nextConfig.sticker
+
+    setStickerSavingFor(survey.id)
+    try {
+      await updateSurveyConfig(survey.id, nextConfig)
+      setSurveys(prev => prev.map(s => (
+        s.id === survey.id ? { ...s, config: nextConfig } : s
+      )))
+      setStickerPickerFor(null)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Не удалось обновить стикер')
+    } finally {
+      setStickerSavingFor(null)
+    }
+  }
+
   if (loading) {
-    return (
-      <div className="adm-tab-content">
-        <div className="adm-loading-rows">
-          {[1, 2, 3].map(i => <div key={i} className="adm-skeleton" style={{ opacity: 1 - i * 0.25 }} />)}
-        </div>
-      </div>
-    )
+    return <SurveysListSkeleton />
   }
 
   return (
@@ -215,10 +256,18 @@ export function SurveysListTab({ onSelect }: Props) {
       ) : (
         <div className="surveys-grid">
           {surveys.map((survey, idx) => (
-            <motion.button
+            <motion.div
               key={survey.id}
               className="surveys-card"
               onClick={() => onSelect(survey)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onSelect(survey)
+                }
+              }}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: idx * 0.06, ease: easeOut }}
@@ -237,10 +286,60 @@ export function SurveysListTab({ onSelect }: Props) {
               </div>
 
               <div className="surveys-card-main">
-                <div className="surveys-card-icon" aria-hidden="true">
-                  <svg width="20" height="20" viewBox="0 0 18 18" fill="none">
-                    <path d="M3 5h12M3 9h8M3 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
+                <div className="surveys-card-icon-wrap">
+                  <button
+                    type="button"
+                    className={`surveys-card-icon surveys-card-icon-btn ${stickerPickerFor === survey.id ? 'surveys-card-icon--open' : ''}`}
+                    onClick={e => {
+                      e.stopPropagation()
+                      setStickerPickerFor(prev => (prev === survey.id ? null : survey.id))
+                    }}
+                    disabled={stickerSavingFor === survey.id}
+                    aria-label="Выбрать стикер опросника"
+                  >
+                    {getSurveyStickerIcon(surveySticker(survey)) ? (
+                      <SurveyStickerGlyph value={surveySticker(survey)} className="surveys-card-icon-glyph" />
+                    ) : surveySticker(survey) ? (
+                      <span className="surveys-card-icon-emoji">{surveySticker(survey)}</span>
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                        <path d="M3 5h12M3 9h8M3 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                    )}
+                  </button>
+                  <AnimatePresence>
+                    {stickerPickerFor === survey.id && (
+                      <motion.div
+                        ref={stickerPickerRef}
+                        className="surveys-sticker-picker"
+                        initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                        transition={{ duration: 0.14, ease: easeOut }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          className={`surveys-sticker-option ${!surveySticker(survey) ? 'surveys-sticker-option--active' : ''}`}
+                          onClick={() => handleStickerPick(survey, '')}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden>
+                            <path d="M3 5h12M3 9h8M3 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                        {SURVEY_STICKER_PRESETS.map(em => (
+                          <button
+                            key={em}
+                            type="button"
+                            className={`surveys-sticker-option ${surveySticker(survey) === em ? 'surveys-sticker-option--active' : ''}`}
+                            onClick={() => handleStickerPick(survey, em)}
+                          >
+                            <SurveyStickerGlyph value={em} className="surveys-sticker-option-glyph" />
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 <div className="surveys-card-copy">
                   <h3 className="surveys-card-title">{survey.title}</h3>
@@ -257,7 +356,7 @@ export function SurveysListTab({ onSelect }: Props) {
                   {survey.config.questions?.length ?? 0} вопр.
                 </span>
               </div>
-            </motion.button>
+            </motion.div>
           ))}
         </div>
       )}
@@ -270,4 +369,24 @@ const TRANSLIT: Record<string, string> = {
   а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'yo',ж:'zh',з:'z',и:'i',й:'j',
   к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',
   х:'kh',ц:'ts',ч:'ch',ш:'sh',щ:'shch',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya',
+}
+
+function SurveyStickerGlyph({ value, className }: { value: string; className?: string }) {
+  const icon = getSurveyStickerIcon(value)
+  if (!icon) return <span className={className}>{value}</span>
+  return (
+    <svg className={className} viewBox={icon.viewBox} fill="none" aria-hidden="true">
+      {icon.paths.map((path, idx) => (
+        <path
+          key={idx}
+          d={path.d}
+          fill={path.fill ?? 'none'}
+          stroke={path.stroke ?? 'currentColor'}
+          strokeWidth={path.strokeWidth ?? 1.4}
+          strokeLinecap={path.strokeLinecap ?? 'round'}
+          strokeLinejoin={path.strokeLinejoin ?? 'round'}
+        />
+      ))}
+    </svg>
+  )
 }

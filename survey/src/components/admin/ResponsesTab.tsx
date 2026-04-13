@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
 import Pagination from '@mui/material/Pagination'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
+import { List, type RowComponentProps } from 'react-window'
 import {
   getResponsesPaged, getResponses, getTokens,
   updateResponseStatus, updateManagerNote, PAGE_SIZE,
 } from '../../lib/supabase'
 import type { SurveyRecord, TokenRecord, ResponseStatus, Survey } from '../../lib/supabase'
+import { ResponsesTabSkeleton } from './AdminSkeletons'
 
 const CURRENT_LABELS: Record<string, string> = {
   yes:       'Да, используем CRM',
@@ -33,6 +35,9 @@ function StatusBadge({ status, size = 'sm' }: { status: ResponseStatus; size?: '
   )
 }
 const STATUS_ORDER: ResponseStatus[] = ['new', 'called', 'in_progress', 'closed']
+const RESPONSES_VIRTUAL_THRESHOLD = 12
+const RESPONSE_ROW_HEIGHT = 92
+const RESPONSE_VIRTUAL_MAX_HEIGHT = 560
 
 function formatDate(iso: string) {
   const d = new Date(iso)
@@ -84,6 +89,14 @@ interface Props {
   survey: Survey
 }
 
+type VirtualResponseRowData = {
+  rows: SurveyRecord[]
+  total: number
+  page: number
+  tokenEmailMap: Map<string, string>
+  onToggle: (id: number) => void
+}
+
 export function ResponsesTab({ surveyId, survey }: Props) {
   const [rows, setRows] = useState<SurveyRecord[]>([])
   const [tokens, setTokens] = useState<TokenRecord[]>([])
@@ -103,11 +116,10 @@ export function ResponsesTab({ surveyId, survey }: Props) {
   const load = useCallback((p: number, filter: ResponseStatus | 'all') => {
     setLoading(true)
     setError('')
-    Promise.all([getResponsesPaged(p, PAGE_SIZE, surveyId, filter), getTokens(surveyId)])
-      .then(([{ data, total: t }, tkns]) => {
+    getResponsesPaged(p, PAGE_SIZE, surveyId, filter)
+      .then(({ data, total: t }) => {
         setRows(data)
         setTotal(t)
-        setTokens(tkns)
         setNoteValues(prev => {
           const next = { ...prev }
           data.forEach(r => { if (!(r.id in next)) next[r.id] = r.manager_note ?? '' })
@@ -116,13 +128,36 @@ export function ResponsesTab({ surveyId, survey }: Props) {
       })
       .catch(e => setError(e.message ?? 'Ошибка загрузки'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [surveyId])
 
   useEffect(() => { load(page, statusFilter) }, [page, statusFilter, load])
 
+  useEffect(() => {
+    getTokens(surveyId)
+      .then(setTokens)
+      .catch(() => {})
+  }, [surveyId])
+
+  const tokenEmailMap = useMemo(
+    () => new Map(tokens.map(t => [t.token, t.email])),
+    [tokens],
+  )
+  const shouldVirtualizeRows = rows.length > RESPONSES_VIRTUAL_THRESHOLD && expanded === null
+  const virtualHeight = Math.min(RESPONSE_VIRTUAL_MAX_HEIGHT, rows.length * RESPONSE_ROW_HEIGHT)
+  const handleToggle = useCallback((id: number) => {
+    setExpanded(prev => prev === id ? null : id)
+  }, [])
+  const virtualRowData = useMemo<VirtualResponseRowData>(() => ({
+    rows,
+    total,
+    page,
+    tokenEmailMap,
+    onToggle: handleToggle,
+  }), [rows, total, page, tokenEmailMap, handleToggle])
+
   function emailByToken(token?: string) {
     if (!token) return null
-    return tokens.find(t => t.token === token)?.email ?? null
+    return tokenEmailMap.get(token) ?? null
   }
 
   async function changeStatus(id: number, status: ResponseStatus) {
@@ -183,7 +218,6 @@ export function ResponsesTab({ surveyId, survey }: Props) {
         value={statusFilter}
         onChange={(_, v) => { setStatusFilter(v); setPage(0); setExpanded(null) }}
         sx={{ mb: 2 }}
-        TabIndicatorProps={{ children: <span /> }}
       >
         <Tab value="all"         label="Все" />
         <Tab value="new"         label="Новые" />
@@ -194,11 +228,7 @@ export function ResponsesTab({ surveyId, survey }: Props) {
 
       {error && <p className="adm-err-banner">{error}</p>}
 
-      {loading && (
-        <div className="adm-loading-rows">
-          {[1, 2, 3].map(i => <div key={i} className="adm-skeleton" style={{ opacity: 1 - i * 0.25 }} />)}
-        </div>
-      )}
+      {loading && <ResponsesTabSkeleton />}
 
       {!loading && rows.length === 0 && !error && (
         <div className="adm-empty">
@@ -208,9 +238,16 @@ export function ResponsesTab({ surveyId, survey }: Props) {
       )}
 
       <div className="adm-responses-list">
-        {rows.map((row, idx) => {
+        {shouldVirtualizeRows ? (
+          <List
+            rowCount={rows.length}
+            rowHeight={RESPONSE_ROW_HEIGHT}
+            rowComponent={VirtualResponseRow}
+            rowProps={virtualRowData}
+            style={{ height: virtualHeight }}
+          />
+        ) : rows.map((row, idx) => {
           const rowStatus: ResponseStatus = (row.status as ResponseStatus) ?? 'new'
-          const statusCfg = STATUS_CONFIG[rowStatus]
           const tokenEmail = emailByToken(row.token)
           const displayEmail = row.email || tokenEmail
           return (
@@ -223,7 +260,7 @@ export function ResponsesTab({ surveyId, survey }: Props) {
             >
               <button
                 className="adm-response-header"
-                onClick={() => setExpanded(expanded === row.id ? null : row.id)}
+                onClick={() => handleToggle(row.id)}
               >
                 <div className="adm-response-left">
                   <span className="adm-response-num">#{total - page * PAGE_SIZE - idx}</span>
@@ -377,6 +414,53 @@ function AnswerBlock({ title, value }: { title: string; value: string }) {
     <div className="adm-qa-block">
       <div className="adm-qa-q">{title}</div>
       <div className="adm-qa-a">{value}</div>
+    </div>
+  )
+}
+
+function VirtualResponseRow({
+  index,
+  style,
+  ...data
+}: RowComponentProps<VirtualResponseRowData>) {
+  const row = data.rows[index]
+  const rowStatus: ResponseStatus = (row.status as ResponseStatus) ?? 'new'
+  const tokenEmail = row.token ? data.tokenEmailMap.get(row.token) : null
+  const displayEmail = row.email || tokenEmail
+
+  return (
+    <div style={style}>
+      <div className="adm-card adm-response-card">
+        <button
+          className="adm-response-header"
+          onClick={() => data.onToggle(row.id)}
+        >
+          <div className="adm-response-left">
+            <span className="adm-response-num">#{data.total - data.page * PAGE_SIZE - index}</span>
+            <div className="adm-response-id-block">
+              <p className="adm-response-name">{row.name}</p>
+              <p className="adm-response-meta-line">
+                <span className="adm-response-meta-item">{row.phone}</span>
+                {displayEmail && (
+                  <>
+                    <span className="adm-response-meta-sep" aria-hidden>·</span>
+                    <span className="adm-response-meta-item adm-response-meta-item--mail">{displayEmail}</span>
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+          <div className="adm-response-right">
+            <StatusBadge status={rowStatus} />
+            <span className="adm-response-date">{formatDate(row.created_at)}</span>
+            <span className="adm-chevron">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </span>
+          </div>
+        </button>
+      </div>
     </div>
   )
 }

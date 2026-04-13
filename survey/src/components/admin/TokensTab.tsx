@@ -1,14 +1,30 @@
-import { useState, useEffect } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, easeOut, AnimatePresence } from 'framer-motion'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
+import { List, type RowComponentProps } from 'react-window'
 import { getTokens, createTokens, deleteToken, regenerateToken } from '../../lib/supabase'
 import type { TokenRecord } from '../../lib/supabase'
+import { AdminSkeletonRows } from './AdminSkeletons'
 
 interface Props {
   surveyId: number
   surveySlug: string
 }
+
+type TokensRowData = {
+  items: TokenRecord[]
+  copied: string | null
+  regenerating: string | null
+  getTokenUrl: (token: string) => string
+  onCopy: (token: string) => void
+  onRegenerate: (token: string, email: string) => void
+  onDelete: (token: string) => void
+}
+
+const TOKEN_ROW_HEIGHT = 112
+const TOKEN_VIRTUAL_THRESHOLD = 18
+const TOKEN_VIRTUAL_MAX_HEIGHT = 560
 
 export function TokensTab({ surveyId, surveySlug }: Props) {
   const [tokens, setTokens] = useState<TokenRecord[]>([])
@@ -22,20 +38,20 @@ export function TokensTab({ surveyId, surveySlug }: Props) {
 
   const origin = window.location.origin
 
-  function tokenUrl(token: string) {
+  const tokenUrl = useCallback((token: string) => {
     // Единый поток: всегда страница опроса (динамическая форма), не лендинг /
     return `${origin}/s/${surveySlug}?t=${token}`
-  }
+  }, [origin, surveySlug])
 
-  function load() {
+  const load = useCallback(() => {
     setLoading(true)
     getTokens(surveyId)
       .then(setTokens)
       .catch(e => setError(e.message ?? 'Ошибка загрузки'))
       .finally(() => setLoading(false))
-  }
+  }, [surveyId])
 
-  useEffect(() => { load() }, [surveyId])
+  useEffect(() => { load() }, [load])
 
   async function generate() {
     const emails = emailInput.split(/[\n,;]+/).map(e => e.trim()).filter(Boolean)
@@ -52,12 +68,12 @@ export function TokensTab({ surveyId, surveySlug }: Props) {
     }
   }
 
-  async function remove(token: string) {
+  const remove = useCallback(async (token: string) => {
     await deleteToken(token)
     setTokens(t => t.filter(r => r.token !== token))
-  }
+  }, [])
 
-  async function regen(token: string, email: string) {
+  const regen = useCallback(async (token: string, email: string) => {
     setRegenerating(token)
     try {
       const newToken = await regenerateToken(token, email, surveyId)
@@ -67,13 +83,13 @@ export function TokensTab({ surveyId, surveySlug }: Props) {
     } finally {
       setRegenerating(null)
     }
-  }
+  }, [surveyId])
 
-  function copy(token: string) {
+  const copy = useCallback((token: string) => {
     navigator.clipboard.writeText(tokenUrl(token))
     setCopied(token)
     setTimeout(() => setCopied(null), 1800)
-  }
+  }, [tokenUrl])
 
   const counts = {
     all: tokens.length,
@@ -86,6 +102,18 @@ export function TokensTab({ surveyId, surveySlug }: Props) {
     : filter === 'new' ? tokens.filter(t => !t.opened_at && !t.used_at)
     : filter === 'opened' ? tokens.filter(t => t.opened_at && !t.used_at)
     : tokens.filter(t => !!t.used_at)
+
+  const shouldVirtualize = filtered.length >= TOKEN_VIRTUAL_THRESHOLD
+  const virtualHeight = Math.min(TOKEN_VIRTUAL_MAX_HEIGHT, filtered.length * TOKEN_ROW_HEIGHT)
+  const rowData = useMemo<TokensRowData>(() => ({
+    items: filtered,
+    copied,
+    regenerating,
+    getTokenUrl: tokenUrl,
+    onCopy: copy,
+    onRegenerate: regen,
+    onDelete: remove,
+  }), [filtered, copied, regenerating, tokenUrl, copy, regen, remove])
 
   return (
     <div className="adm-tab-content">
@@ -141,7 +169,6 @@ export function TokensTab({ surveyId, surveySlug }: Props) {
           value={filter}
           onChange={(_, v) => setFilter(v)}
           sx={{ mb: 1 }}
-          TabIndicatorProps={{ children: <span /> }}
         >
           <Tab value="all"    label={`Все ${counts.all}`} />
           <Tab value="new"    label={`Не открыт ${counts.new}`} />
@@ -160,71 +187,130 @@ export function TokensTab({ surveyId, surveySlug }: Props) {
       )}
 
       {/* Loading skeleton */}
-      {loading && (
-        <div className="adm-loading-rows">
-          {[1,2,3].map(i => <div key={i} className="adm-skeleton" />)}
-        </div>
-      )}
+      {loading && <AdminSkeletonRows count={4} rowHeight={64} />}
 
       {/* Token list */}
       <div className="adm-token-list">
-        <AnimatePresence initial={false}>
-          {filtered.map((t, idx) => {
-            const status = t.used_at ? 'used' : t.opened_at ? 'opened' : 'new'
-            const initials = t.email.slice(0, 2).toUpperCase()
-            const url = tokenUrl(t.token)
-            return (
-              <motion.div
+        {shouldVirtualize ? (
+          <List
+            rowCount={filtered.length}
+            rowHeight={TOKEN_ROW_HEIGHT}
+            rowComponent={VirtualTokenRow}
+            rowProps={rowData}
+            style={{ height: virtualHeight }}
+          />
+        ) : (
+          <AnimatePresence initial={false}>
+            {filtered.map((t, idx) => (
+              <TokenRow
                 key={t.token}
-                className="tok-row adm-card"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                transition={{ duration: 0.25, delay: idx * 0.025, ease: easeOut }}
-              >
-                <div className={`tok-avatar tok-avatar--${status}`}>
-                  <span>{initials}</span>
-                </div>
-
-                <div className="adm-token-info">
-                  <p className="adm-token-email">{t.email}</p>
-                  <p className="adm-token-url">{url}</p>
-                </div>
-
-                <span className={`adm-token-badge adm-token-badge--${status}`}>
-                  <span className="adm-token-badge-dot" />
-                  {status === 'used' ? 'Заполнен' : status === 'opened' ? 'Открыт' : 'Не открыт'}
-                </span>
-
-                <div className="adm-token-actions">
-                  <motion.button
-                    className={`adm-btn-ghost adm-btn-copy ${copied === t.token ? 'adm-btn-copy--done' : ''}`}
-                    onClick={() => copy(t.token)}
-                    whileTap={{ scale: 0.93 }}
-                    title="Скопировать ссылку"
-                  >
-                    {copied === t.token ? <CheckIcon /> : <CopyIcon />}
-                    {copied === t.token ? 'Скопировано' : 'Копировать'}
-                  </motion.button>
-                  <button
-                    className="adm-btn-ghost adm-btn-regen"
-                    onClick={() => regen(t.token, t.email)}
-                    disabled={regenerating === t.token}
-                    title="Перегенерировать ссылку"
-                  >
-                    {regenerating === t.token
-                      ? <span className="adm-spinner adm-spinner--sm" />
-                      : <RegenIcon />}
-                  </button>
-                  <button className="adm-btn-danger" onClick={() => remove(t.token)} title="Удалить">
-                    <TrashIcon />
-                  </button>
-                </div>
-              </motion.div>
-            )
-          })}
-        </AnimatePresence>
+                token={t}
+                copied={copied === t.token}
+                regenerating={regenerating === t.token}
+                url={tokenUrl(t.token)}
+                onCopy={copy}
+                onRegenerate={regen}
+                onDelete={remove}
+                animateIn
+                delay={idx * 0.025}
+              />
+            ))}
+          </AnimatePresence>
+        )}
       </div>
+    </div>
+  )
+}
+
+const TokenRow = memo(function TokenRow({
+  token,
+  copied,
+  regenerating,
+  url,
+  onCopy,
+  onRegenerate,
+  onDelete,
+  animateIn = false,
+  delay = 0,
+}: {
+  token: TokenRecord
+  copied: boolean
+  regenerating: boolean
+  url: string
+  onCopy: (token: string) => void
+  onRegenerate: (token: string, email: string) => void
+  onDelete: (token: string) => void
+  animateIn?: boolean
+  delay?: number
+}) {
+  const status = token.used_at ? 'used' : token.opened_at ? 'opened' : 'new'
+  const initials = token.email.slice(0, 2).toUpperCase()
+
+  return (
+    <motion.div
+      className="tok-row adm-card"
+      initial={animateIn ? { opacity: 0, y: 10 } : false}
+      animate={animateIn ? { opacity: 1, y: 0 } : undefined}
+      exit={animateIn ? { opacity: 0, y: -6, scale: 0.98 } : undefined}
+      transition={animateIn ? { duration: 0.25, delay, ease: easeOut } : undefined}
+    >
+      <div className={`tok-avatar tok-avatar--${status}`}>
+        <span>{initials}</span>
+      </div>
+
+      <div className="adm-token-info">
+        <p className="adm-token-email">{token.email}</p>
+        <p className="adm-token-url">{url}</p>
+      </div>
+
+      <span className={`adm-token-badge adm-token-badge--${status}`}>
+        <span className="adm-token-badge-dot" />
+        {status === 'used' ? 'Заполнен' : status === 'opened' ? 'Открыт' : 'Не открыт'}
+      </span>
+
+      <div className="adm-token-actions">
+        <motion.button
+          className={`adm-btn-ghost adm-btn-copy ${copied ? 'adm-btn-copy--done' : ''}`}
+          onClick={() => onCopy(token.token)}
+          whileTap={{ scale: 0.93 }}
+          title="Скопировать ссылку"
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
+          {copied ? 'Скопировано' : 'Копировать'}
+        </motion.button>
+        <button
+          className="adm-btn-ghost adm-btn-regen"
+          onClick={() => onRegenerate(token.token, token.email)}
+          disabled={regenerating}
+          title="Перегенерировать ссылку"
+        >
+          {regenerating ? <span className="adm-spinner adm-spinner--sm" /> : <RegenIcon />}
+        </button>
+        <button className="adm-btn-danger" onClick={() => onDelete(token.token)} title="Удалить">
+          <TrashIcon />
+        </button>
+      </div>
+    </motion.div>
+  )
+})
+
+function VirtualTokenRow({
+  index,
+  style,
+  ...data
+}: RowComponentProps<TokensRowData>) {
+  const token = data.items[index]
+  return (
+    <div style={style}>
+      <TokenRow
+        token={token}
+        copied={data.copied === token.token}
+        regenerating={data.regenerating === token.token}
+        url={data.getTokenUrl(token.token)}
+        onCopy={data.onCopy}
+        onRegenerate={data.onRegenerate}
+        onDelete={data.onDelete}
+      />
     </div>
   )
 }

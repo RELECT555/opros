@@ -4,6 +4,7 @@ import { motion, AnimatePresence, easeOut, useReducedMotion } from 'framer-motio
 import { getSurveyById, updateSurveyConfig } from '../../lib/supabase'
 import type { Survey, SurveyQuestion, SurveyConfigData, QuestionMedia, QuestionMediaKind } from '../../lib/supabase'
 import { questionMediaHasContent } from '../../lib/questionMedia'
+import { QuestionsTabSkeleton } from './AdminSkeletons'
 
 interface ConfirmState {
   open: boolean
@@ -217,13 +218,7 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
   }
 
   if (loading) {
-    return (
-      <div className="adm-tab-content">
-        <div className="adm-loading-rows">
-          {[1,2,3].map(i => <div key={i} className="adm-skeleton" style={{ opacity: 1 - i * 0.25 }} />)}
-        </div>
-      </div>
-    )
+    return <QuestionsTabSkeleton />
   }
 
   return (

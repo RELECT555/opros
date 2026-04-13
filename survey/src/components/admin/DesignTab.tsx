@@ -5,10 +5,11 @@ import {
   updateSurveyConfig,
   uploadSurveyLogo,
 } from '../../lib/supabase'
-import type { Survey, SurveyDesign } from '../../lib/supabase'
+import type { Survey, SurveyConfigData, SurveyDesign } from '../../lib/supabase'
 import {
   SURVEY_STICKER_PRESETS,
   SURVEY_STICKER_MAX_LEN,
+  getSurveyStickerIcon,
 } from '../../lib/surveyStickers'
 import {
   mergeSurveyDesign,
@@ -17,6 +18,7 @@ import {
 } from '../../lib/surveyDesign'
 import type { SurveyCtaStyle, SurveyOrbIntensity, SurveyRadiusPreset, SurveyTypeScale } from '../../lib/surveyDesign'
 import { SavedIcon } from './shared'
+import { DesignTabSkeleton } from './AdminSkeletons'
 
 type PresetColors = Pick<
   SurveyDesign,
@@ -117,7 +119,7 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
       if (!survey) throw new Error('Опросник не найден')
       const trimmed = sticker.trim().slice(0, SURVEY_STICKER_MAX_LEN)
       const { sticker: _prev, ...rest } = survey.config
-      const newConfig = { ...rest, design }
+      const newConfig: SurveyConfigData = { ...rest, design }
       if (trimmed) newConfig.sticker = trimmed
       await updateSurveyConfig(surveyId, newConfig)
       const updated = await getSurveyById(surveyId)
@@ -153,11 +155,7 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
   const orbMul = previewOrbMultiplier(d)
 
   if (loading) {
-    return (
-      <div className="dsg-loading">
-        <span className="adm-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
-      </div>
-    )
+    return <DesignTabSkeleton />
   }
 
   return (
@@ -231,46 +229,6 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
             </div>
 
             <div className="dsg-block">
-              <div className="dsg-block-label">Стикер в списке опросников</div>
-              <p className="dsg-sticker-hint">Отображается на карточке в разделе «Опросники»</p>
-              <div className="dsg-sticker-grid">
-                <button
-                  type="button"
-                  className={`dsg-sticker-cell dsg-sticker-cell--default ${!sticker ? 'dsg-sticker-cell--active' : ''}`}
-                  onClick={() => setSticker('')}
-                  title="Иконка списка по умолчанию"
-                >
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
-                    <path d="M3 5h12M3 9h8M3 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </button>
-                {SURVEY_STICKER_PRESETS.map(em => (
-                  <button
-                    key={em}
-                    type="button"
-                    className={`dsg-sticker-cell ${sticker === em ? 'dsg-sticker-cell--active' : ''}`}
-                    onClick={() => setSticker(em)}
-                  >
-                    <span className="dsg-sticker-emoji">{em}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="dsg-field dsg-field--sticker-custom">
-                <label className="dsg-field-label" htmlFor="dsg-sticker-custom">Свой emoji</label>
-                <input
-                  id="dsg-sticker-custom"
-                  className="dsg-input"
-                  type="text"
-                  inputMode="text"
-                  maxLength={SURVEY_STICKER_MAX_LEN}
-                  placeholder="Вставьте символ или выберите выше"
-                  value={sticker}
-                  onChange={e => setSticker(e.target.value.slice(0, SURVEY_STICKER_MAX_LEN))}
-                />
-              </div>
-            </div>
-
-            <div className="dsg-block">
               <div className="dsg-block-label">Цвета</div>
               <div className="dsg-color-grid">
                 <ColorSwatch label="Акцент" value={d.accent} onChange={v => patchDesign({ accent: v })} />
@@ -283,107 +241,90 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
               </div>
             </div>
 
-            <div className="dsg-block">
-              <div className="dsg-block-label">Типографика</div>
-              <Segmented
-                value={d.type_scale}
-                options={[
-                  { id: 'compact', label: 'Компакт' },
-                  { id: 'normal', label: 'Обычно' },
-                  { id: 'large', label: 'Крупно' },
-                ]}
-                onChange={v => patchDesign({ type_scale: v as SurveyTypeScale })}
-              />
-            </div>
+            <div className="dsg-compact-grid">
+              <div className="dsg-block">
+                <div className="dsg-block-label">Типографика</div>
+                <Segmented
+                  value={d.type_scale}
+                  options={[
+                    { id: 'compact', label: 'Компакт' },
+                    { id: 'normal', label: 'Обычно' },
+                    { id: 'large', label: 'Крупно' },
+                  ]}
+                  onChange={v => patchDesign({ type_scale: v as SurveyTypeScale })}
+                />
+              </div>
 
-            <div className="dsg-block">
-              <div className="dsg-block-label">Кнопка (стиль)</div>
-              <Segmented
-                value={d.cta_style}
-                options={[
-                  { id: 'gradient', label: 'Градиент' },
-                  { id: 'solid', label: 'Заливка' },
-                  { id: 'outline', label: 'Контур' },
-                ]}
-                onChange={v => patchDesign({ cta_style: v as SurveyCtaStyle })}
-              />
-            </div>
+              <div className="dsg-block">
+                <div className="dsg-block-label">Кнопка (стиль)</div>
+                <Segmented
+                  value={d.cta_style}
+                  options={[
+                    { id: 'gradient', label: 'Градиент' },
+                    { id: 'solid', label: 'Заливка' },
+                    { id: 'outline', label: 'Контур' },
+                  ]}
+                  onChange={v => patchDesign({ cta_style: v as SurveyCtaStyle })}
+                />
+              </div>
 
-            <div className="dsg-block">
-              <div className="dsg-block-label">Скругление</div>
-              <Segmented
-                value={d.radius}
-                options={[
-                  { id: 'sm', label: 'Меньше' },
-                  { id: 'md', label: 'Средне' },
-                  { id: 'lg', label: 'Больше' },
-                ]}
-                onChange={v => patchDesign({ radius: v as SurveyRadiusPreset })}
-              />
-            </div>
+              <div className="dsg-block">
+                <div className="dsg-block-label">Скругление</div>
+                <Segmented
+                  value={d.radius}
+                  options={[
+                    { id: 'sm', label: 'Меньше' },
+                    { id: 'md', label: 'Средне' },
+                    { id: 'lg', label: 'Больше' },
+                  ]}
+                  onChange={v => patchDesign({ radius: v as SurveyRadiusPreset })}
+                />
+              </div>
 
-            <div className="dsg-block">
-              <div className="dsg-block-label">Светимость орбов</div>
-              <Segmented
-                value={d.orb_intensity}
-                options={[
-                  { id: 'off', label: 'Выкл.' },
-                  { id: 'low', label: 'Слабо' },
-                  { id: 'medium', label: 'Средне' },
-                  { id: 'high', label: 'Сильно' },
-                ]}
-                onChange={v => patchDesign({ orb_intensity: v as SurveyOrbIntensity })}
-              />
-            </div>
-
-            <div className="dsg-block">
-              <div className="dsg-block-label">Тексты welcome</div>
-              <div className="dsg-fields-grid">
-                <div className="dsg-field dsg-field--span-2">
-                  <label className="dsg-field-label" htmlFor="dsg-badge">Бейдж (пусто = скрыть)</label>
-                  <input
-                    id="dsg-badge"
-                    className="dsg-input"
-                    type="text"
-                    placeholder="Бесплатная консультация"
-                    value={d.welcome_badge}
-                    onChange={e => setDesign(dd => ({
-                      ...mergeSurveyDesign(dd ?? undefined),
-                      welcome_badge: e.target.value,
-                    }))}
-                  />
-                </div>
-                <div className="dsg-field">
-                  <label className="dsg-field-label" htmlFor="dsg-h1">Подсказка слева (иконка времени)</label>
-                  <input
-                    id="dsg-h1"
-                    className="dsg-input"
-                    type="text"
-                    placeholder="2 минуты"
-                    value={d.welcome_hint_1}
-                    onChange={e => setDesign(dd => ({
-                      ...mergeSurveyDesign(dd ?? undefined),
-                      welcome_hint_1: e.target.value,
-                    }))}
-                  />
-                </div>
-                <div className="dsg-field">
-                  <label className="dsg-field-label" htmlFor="dsg-h2">Подсказка справа (иконка замка)</label>
-                  <input
-                    id="dsg-h2"
-                    className="dsg-input"
-                    type="text"
-                    placeholder="данные в безопасности"
-                    value={d.welcome_hint_2}
-                    onChange={e => setDesign(dd => ({
-                      ...mergeSurveyDesign(dd ?? undefined),
-                      welcome_hint_2: e.target.value,
-                    }))}
-                  />
-                </div>
+              <div className="dsg-block">
+                <div className="dsg-block-label">Светимость орбов</div>
+                <Segmented
+                  value={d.orb_intensity}
+                  options={[
+                    { id: 'off', label: 'Выкл.' },
+                    { id: 'low', label: 'Слабо' },
+                    { id: 'medium', label: 'Средне' },
+                    { id: 'high', label: 'Сильно' },
+                  ]}
+                  onChange={v => patchDesign({ orb_intensity: v as SurveyOrbIntensity })}
+                />
               </div>
             </div>
 
+          </div>
+        </div>
+
+        <div className="dsg-preview-wrap">
+          <div className="dsg-preview-sticky">
+            <div className="dsg-preview-label">Предпросмотр</div>
+            <div className="dsg-preview-tabs" role="tablist">
+              {([
+                ['welcome', 'Приветствие'],
+                ['question', 'Вопрос'],
+                ['contacts', 'Контакты'],
+                ['success', 'Успех'],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={previewTab === id}
+                  className={`dsg-preview-tab ${previewTab === id ? 'dsg-preview-tab--on' : ''}`}
+                  onClick={() => setPreviewTab(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <SurveyPreview design={d} tab={previewTab} orbMul={orbMul} />
+          </div>
+
+          <div className="dsg-preview-controls">
             <div className="dsg-block">
               <div className="dsg-block-label">Контент</div>
               <div className="dsg-content-split">
@@ -441,6 +382,94 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
               </div>
             </div>
 
+            <div className="dsg-block">
+              <div className="dsg-block-label">Стикер в списке опросников</div>
+              <p className="dsg-sticker-hint">Отображается на карточке в разделе «Опросники»</p>
+              <div className="dsg-sticker-grid">
+                <button
+                  type="button"
+                  className={`dsg-sticker-cell dsg-sticker-cell--default ${!sticker ? 'dsg-sticker-cell--active' : ''}`}
+                  onClick={() => setSticker('')}
+                  title="Иконка списка по умолчанию"
+                >
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+                    <path d="M3 5h12M3 9h8M3 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </button>
+                {SURVEY_STICKER_PRESETS.map(em => (
+                  <button
+                    key={em}
+                    type="button"
+                    className={`dsg-sticker-cell ${sticker === em ? 'dsg-sticker-cell--active' : ''}`}
+                    onClick={() => setSticker(em)}
+                  >
+                    <SurveyStickerGlyph value={em} className="dsg-sticker-glyph" />
+                  </button>
+                ))}
+              </div>
+              <div className="dsg-field dsg-field--sticker-custom">
+                <label className="dsg-field-label" htmlFor="dsg-sticker-custom">Свой значок / текст</label>
+                <input
+                  id="dsg-sticker-custom"
+                  className="dsg-input"
+                  type="text"
+                  inputMode="text"
+                  maxLength={SURVEY_STICKER_MAX_LEN}
+                  placeholder="Вставьте символ или выберите выше"
+                  value={sticker}
+                  onChange={e => setSticker(e.target.value.slice(0, SURVEY_STICKER_MAX_LEN))}
+                />
+              </div>
+            </div>
+
+            <div className="dsg-block">
+              <div className="dsg-block-label">Тексты welcome</div>
+              <div className="dsg-fields-grid">
+                <div className="dsg-field dsg-field--span-2">
+                  <label className="dsg-field-label" htmlFor="dsg-badge">Бейдж (пусто = скрыть)</label>
+                  <input
+                    id="dsg-badge"
+                    className="dsg-input"
+                    type="text"
+                    placeholder="Бесплатная консультация"
+                    value={d.welcome_badge}
+                    onChange={e => setDesign(dd => ({
+                      ...mergeSurveyDesign(dd ?? undefined),
+                      welcome_badge: e.target.value,
+                    }))}
+                  />
+                </div>
+                <div className="dsg-field">
+                  <label className="dsg-field-label" htmlFor="dsg-h1">Подсказка слева (иконка времени)</label>
+                  <input
+                    id="dsg-h1"
+                    className="dsg-input"
+                    type="text"
+                    placeholder="2 минуты"
+                    value={d.welcome_hint_1}
+                    onChange={e => setDesign(dd => ({
+                      ...mergeSurveyDesign(dd ?? undefined),
+                      welcome_hint_1: e.target.value,
+                    }))}
+                  />
+                </div>
+                <div className="dsg-field">
+                  <label className="dsg-field-label" htmlFor="dsg-h2">Подсказка справа (иконка замка)</label>
+                  <input
+                    id="dsg-h2"
+                    className="dsg-input"
+                    type="text"
+                    placeholder="данные в безопасности"
+                    value={d.welcome_hint_2}
+                    onChange={e => setDesign(dd => ({
+                      ...mergeSurveyDesign(dd ?? undefined),
+                      welcome_hint_2: e.target.value,
+                    }))}
+                  />
+                </div>
+              </div>
+            </div>
+
             {contrast.length > 0 && (
               <div className="dsg-a11y-block">
                 <div className="dsg-block-label">Доступность</div>
@@ -452,30 +481,6 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
               </div>
             )}
           </div>
-        </div>
-
-        <div className="dsg-preview-wrap">
-          <div className="dsg-preview-label">Предпросмотр</div>
-          <div className="dsg-preview-tabs" role="tablist">
-            {([
-              ['welcome', 'Приветствие'],
-              ['question', 'Вопрос'],
-              ['contacts', 'Контакты'],
-              ['success', 'Успех'],
-            ] as const).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={previewTab === id}
-                className={`dsg-preview-tab ${previewTab === id ? 'dsg-preview-tab--on' : ''}`}
-                onClick={() => setPreviewTab(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <SurveyPreview design={d} tab={previewTab} orbMul={orbMul} />
         </div>
       </div>
     </div>
@@ -699,6 +704,26 @@ function CheckIcon() {
   return (
     <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
       <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function SurveyStickerGlyph({ value, className }: { value: string; className?: string }) {
+  const icon = getSurveyStickerIcon(value)
+  if (!icon) return <span className={className}>{value}</span>
+  return (
+    <svg className={className} viewBox={icon.viewBox} fill="none" aria-hidden="true">
+      {icon.paths.map((path, idx) => (
+        <path
+          key={idx}
+          d={path.d}
+          fill={path.fill ?? 'none'}
+          stroke={path.stroke ?? 'currentColor'}
+          strokeWidth={path.strokeWidth ?? 1.4}
+          strokeLinecap={path.strokeLinecap ?? 'round'}
+          strokeLinejoin={path.strokeLinejoin ?? 'round'}
+        />
+      ))}
     </svg>
   )
 }

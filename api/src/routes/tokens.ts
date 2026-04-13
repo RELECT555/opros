@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify'
-import { query, queryOne } from '../db/client.js'
+import { randomBytes } from 'node:crypto'
+import { db, query } from '../db/client.js'
 import { requireAdminKey } from '../middleware/auth.js'
 
 function generateToken(): string {
-  return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10)
+  return randomBytes(16).toString('hex')
 }
 
 export async function tokensRoutes(app: FastifyInstance) {
@@ -86,21 +87,35 @@ export async function tokensRoutes(app: FastifyInstance) {
     '/admin/tokens/:token/regenerate',
     { preHandler: requireAdminKey },
     async (req, reply) => {
-      const old = await queryOne<{ email: string; survey_id: number | null }>(
-        'select email, survey_id from survey_tokens where token = $1',
-        [req.params.token],
-      )
-      if (!old) return reply.code(404).send({ error: 'Токен не найден' })
+      const client = await db.connect()
+      try {
+        await client.query('begin')
+        const oldResult = await client.query<{ email: string; survey_id: number | null }>(
+          'select email, survey_id from survey_tokens where token = $1',
+          [req.params.token],
+        )
+        const old = oldResult.rows[0]
+        if (!old) {
+          await client.query('rollback')
+          return reply.code(404).send({ error: 'Токен не найден' })
+        }
 
-      await query('delete from survey_tokens where token = $1', [req.params.token])
+        await client.query('delete from survey_tokens where token = $1', [req.params.token])
 
-      const newToken = generateToken()
-      const row = await queryOne(
-        `insert into survey_tokens (token, email, survey_id)
-         values ($1, $2, $3) returning *`,
-        [newToken, old.email, old.survey_id],
-      )
-      reply.send(row)
+        const newToken = generateToken()
+        const inserted = await client.query(
+          `insert into survey_tokens (token, email, survey_id)
+           values ($1, $2, $3) returning *`,
+          [newToken, old.email, old.survey_id],
+        )
+        await client.query('commit')
+        reply.send(inserted.rows[0])
+      } catch (error) {
+        await client.query('rollback')
+        throw error
+      } finally {
+        client.release()
+      }
     },
   )
 }

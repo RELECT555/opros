@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, easeOut } from 'framer-motion'
 import { getResponses, getTokens } from '../../lib/supabase'
 import type { SurveyRecord, TokenRecord, ResponseStatus } from '../../lib/supabase'
+import { AnalyticsTabSkeleton } from './AdminSkeletons'
 
 const CURRENT_LABELS: Record<string, string> = {
   yes:       'Да, используем CRM',
@@ -36,13 +37,7 @@ export function AnalyticsTab({ surveyId }: Props) {
   }, [surveyId])
 
   if (loading) {
-    return (
-      <div className="adm-tab-content">
-        <div className="adm-loading-rows">
-          {[1, 2, 3].map(i => <div key={i} className="adm-skeleton" style={{ opacity: 1 - i * 0.25 }} />)}
-        </div>
-      </div>
-    )
+    return <AnalyticsTabSkeleton />
   }
   if (error) {
     return <div className="adm-tab-content"><p className="adm-err-banner">{error}</p></div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence, easeOut, useReducedMotion } from 'framer-motion'
 import { ThemeProvider } from '@mui/material/styles'
@@ -14,6 +14,7 @@ import { QuestionsTab } from './components/admin/QuestionsTab'
 import { DesignTab } from './components/admin/DesignTab'
 import { SurveysListTab } from './components/admin/SurveysListTab'
 import { SettingsTab, loadAdminTheme, applyAdminTheme, toggleAdminUiMode } from './components/admin/SettingsTab'
+import { AdminSurveyBootstrapSkeleton } from './components/admin/AdminSkeletons'
 import { getSurveys, getSurveyById } from './lib/supabase'
 import type { Survey } from './lib/supabase'
 import { markAdminAuthenticated, isAdminAuthenticated } from './lib/adminSession'
@@ -31,6 +32,7 @@ export default function AdminPage() {
   const [collapsed, setCollapsed] = useState(false)
   const [surveysListOpen, setSurveysListOpen] = useState(true)
   const [sidebarSurveys, setSidebarSurveys] = useState<Survey[]>([])
+  const [resolvingSurveyFromUrl, setResolvingSurveyFromUrl] = useState(false)
   const [muiMode, setMuiMode] = useState<'light' | 'dark'>(() =>
     loadAdminTheme().uiMode === 'light' ? 'light' : 'dark',
   )
@@ -39,7 +41,6 @@ export default function AdminPage() {
 
   const handleSurveySelect = useCallback((survey: Survey) => {
     setActiveSurvey(survey)
-    getSurveys().then(setSidebarSurveys).catch(() => {})
   }, [])
 
   const handleSurveyUpdate = useCallback((s: Survey) => {
@@ -47,21 +48,10 @@ export default function AdminPage() {
     setSidebarSurveys(prev => prev.map(x => (x.id === s.id ? s : x)))
   }, [])
 
-  const hadSurveyRef = useRef(false)
-
   useEffect(() => {
     if (!authed) return
     getSurveys().then(setSidebarSurveys).catch(() => {})
   }, [authed])
-
-  useEffect(() => {
-    if (!authed) return
-    const has = !!activeSurvey
-    if (!has && hadSurveyRef.current) {
-      getSurveys().then(setSidebarSurveys).catch(() => {})
-    }
-    hadSurveyRef.current = has
-  }, [authed, activeSurvey])
 
   const tabMotionTransition = reduceMotion
     ? { duration: 0 }
@@ -72,15 +62,31 @@ export default function AdminPage() {
   }, [authed, muiMode])
 
   useEffect(() => {
-    if (!authed) return
+    function clearResolving() {
+      queueMicrotask(() => setResolvingSurveyFromUrl(false))
+    }
+    function startResolving() {
+      queueMicrotask(() => setResolvingSurveyFromUrl(true))
+    }
+    if (!authed) {
+      clearResolving()
+      return
+    }
     const sid = searchParams.get('survey')
-    if (!sid) return
+    if (!sid) {
+      clearResolving()
+      return
+    }
     const id = Number(sid)
-    if (!Number.isFinite(id) || id < 1) return
+    if (!Number.isFinite(id) || id < 1) {
+      clearResolving()
+      return
+    }
     const rawTab = searchParams.get('tab')
     const nextTab: Tab =
       rawTab && ADMIN_TAB_KEYS.includes(rawTab as Tab) ? (rawTab as Tab) : 'questions'
     let cancelled = false
+    startResolving()
     getSurveyById(id)
       .then(s => {
         if (cancelled) return
@@ -103,7 +109,13 @@ export default function AdminPage() {
         }, { replace: true })
       })
       .catch(() => {})
-    return () => { cancelled = true }
+      .finally(() => {
+        if (!cancelled) clearResolving()
+      })
+    return () => {
+      cancelled = true
+      clearResolving()
+    }
   }, [authed, searchParams, setSearchParams])
 
   useEffect(() => {
@@ -302,7 +314,12 @@ export default function AdminPage() {
                   }}
                   size="small"
                   color="primary"
-                  inputProps={{ 'aria-label': 'Тёмная тема оформления админки' }}
+                  slotProps={{
+                    input: {
+                      role: 'switch',
+                      'aria-label': 'Тёмная тема оформления админки',
+                    },
+                  }}
                 />
               </div>
             ) : (
@@ -317,7 +334,12 @@ export default function AdminPage() {
                     }}
                     size="small"
                     color="primary"
-                    inputProps={{ 'aria-label': 'Тёмная тема оформления админки' }}
+                    slotProps={{
+                      input: {
+                        role: 'switch',
+                        'aria-label': 'Тёмная тема оформления админки',
+                      },
+                    }}
                   />
                 }
                 label={
@@ -365,6 +387,16 @@ export default function AdminPage() {
                 transition={tabMotionTransition}
               >
                 <SettingsTab />
+              </motion.div>
+            ) : resolvingSurveyFromUrl ? (
+              <motion.div
+                key="survey-url-resolve"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={tabMotionTransition}
+              >
+                <AdminSurveyBootstrapSkeleton />
               </motion.div>
             ) : !activeSurvey ? (
               <motion.div
