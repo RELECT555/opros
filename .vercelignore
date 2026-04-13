@@ -1,0 +1,4 @@
+# Не загружаем на Vercel: бэкенд (Node/Fastify) и Supabase — статический деплой только из survey/dist.
+# Папка с именем api/ в корне у Vercel трактуется как набор Serverless Functions и упирается в лимит Hobby (12 шт.).
+server/
+supabase/

@@ -283,38 +283,40 @@ export function SettingsTab() {
         <div className="set-section-label"><BrushIcon />Тема администратора</div>
         <div className="set-section-desc">Изменения применяются мгновенно и сохраняются в браузере.</div>
 
-        <div className="set-ui-mode-row" role="group" aria-label="Светлое или тёмное оформление">
-          <button
-            type="button"
-            className={`set-ui-mode-btn ${theme.uiMode !== 'light' ? 'set-ui-mode-btn--active' : ''}`}
-            onClick={() => setUiMode('dark')}
-          >
-            Тёмная
-          </button>
-          <button
-            type="button"
-            className={`set-ui-mode-btn ${theme.uiMode === 'light' ? 'set-ui-mode-btn--active' : ''}`}
-            onClick={() => setUiMode('light')}
-          >
-            Светлая
-          </button>
-        </div>
+        <div className="set-ui-mode-groups">
+          <div className="set-ui-mode-row" role="group" aria-label="Светлое или тёмное оформление">
+            <button
+              type="button"
+              className={`set-ui-mode-btn ${theme.uiMode !== 'light' ? 'set-ui-mode-btn--active' : ''}`}
+              onClick={() => setUiMode('dark')}
+            >
+              Тёмная
+            </button>
+            <button
+              type="button"
+              className={`set-ui-mode-btn ${theme.uiMode === 'light' ? 'set-ui-mode-btn--active' : ''}`}
+              onClick={() => setUiMode('light')}
+            >
+              Светлая
+            </button>
+          </div>
 
-        <div className="set-ui-mode-row" role="group" aria-label="Режим производительности интерфейса">
-          <button
-            type="button"
-            className={`set-ui-mode-btn ${theme.fxMode !== 'lite' ? 'set-ui-mode-btn--active' : ''}`}
-            onClick={() => setFxMode('full')}
-          >
-            Полные эффекты
-          </button>
-          <button
-            type="button"
-            className={`set-ui-mode-btn ${theme.fxMode === 'lite' ? 'set-ui-mode-btn--active' : ''}`}
-            onClick={() => setFxMode('lite')}
-          >
-            Лёгкий режим
-          </button>
+          <div className="set-ui-mode-row" role="group" aria-label="Режим производительности интерфейса">
+            <button
+              type="button"
+              className={`set-ui-mode-btn ${theme.fxMode !== 'lite' ? 'set-ui-mode-btn--active' : ''}`}
+              onClick={() => setFxMode('full')}
+            >
+              Полные эффекты
+            </button>
+            <button
+              type="button"
+              className={`set-ui-mode-btn ${theme.fxMode === 'lite' ? 'set-ui-mode-btn--active' : ''}`}
+              onClick={() => setFxMode('lite')}
+            >
+              Лёгкий режим
+            </button>
+          </div>
         </div>
 
         {/* Presets */}

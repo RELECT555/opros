@@ -29,7 +29,7 @@ services:
   # ── Node.js API ─────────────────────────────────────────────
   api:
     build:
-      context: ./api
+      context: ./server
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
