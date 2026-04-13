@@ -2,7 +2,6 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom'
 import './index.css'
-import App from './App.tsx'
 import AdminPage from './AdminPage.tsx'
 import SurveyPage from './pages/SurveyPage.tsx'
 import HomePage from './pages/HomePage.tsx'
@@ -10,6 +9,11 @@ import HomePage from './pages/HomePage.tsx'
 function SurveyRoute() {
   const { slug } = useParams<{ slug: string }>()
   return <SurveyPage slug={slug!} />
+}
+
+/** Тот же конструктор, что /s/crm — без старой растянутой вёрстки /crm (SurveyForm). */
+function CrmSurveyRoute() {
+  return <SurveyPage slug="crm" />
 }
 
 createRoot(document.getElementById('root')!).render(
@@ -20,7 +24,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/s/:slug" element={<SurveyRoute />} />
         <Route path="/admin" element={<AdminPage />} />
         {/* Обратная совместимость: старые CRM-ссылки /?t=xxx */}
-        <Route path="/crm" element={<App />} />
+        <Route path="/crm" element={<CrmSurveyRoute />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

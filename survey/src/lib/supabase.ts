@@ -15,6 +15,16 @@ export const supabase = createClient(url ?? 'https://placeholder.supabase.co', k
 
 // ── Survey types ────────────────────────────────────────────
 
+export type QuestionMediaKind = 'image' | 'video' | 'embed'
+
+export type QuestionMedia = {
+  kind: QuestionMediaKind
+  /** Публичный URL (картинка, mp4/webm или страница для встраивания) */
+  url: string
+  /** Подпись к изображению / заголовок для iframe */
+  alt?: string
+}
+
 export interface SurveyQuestion {
   id: string
   type: 'checkbox' | 'radio' | 'text' | 'scale'
@@ -25,7 +35,13 @@ export interface SurveyQuestion {
   scaleMin?: number
   scaleMax?: number
   optionsLayout?: 'grid' | 'list'
+  media?: QuestionMedia
 }
+
+export type SurveyTypeScale = 'compact' | 'normal' | 'large'
+export type SurveyCtaStyle = 'gradient' | 'solid' | 'outline'
+export type SurveyOrbIntensity = 'off' | 'low' | 'medium' | 'high'
+export type SurveyRadiusPreset = 'sm' | 'md' | 'lg'
 
 export interface SurveyDesign {
   accent?:    string
@@ -38,6 +54,14 @@ export interface SurveyDesign {
   logo_url?:  string
   btn_label?: string
   preset?:    string
+  /** Пустая строка = скрыть бейдж на welcome. */
+  welcome_badge?: string
+  welcome_hint_1?: string
+  welcome_hint_2?: string
+  type_scale?: SurveyTypeScale
+  cta_style?: SurveyCtaStyle
+  radius?: SurveyRadiusPreset
+  orb_intensity?: SurveyOrbIntensity
 }
 
 export interface SurveyConfigData {
@@ -45,6 +69,8 @@ export interface SurveyConfigData {
   welcome_sub?: string
   questions: SurveyQuestion[]
   design?: SurveyDesign
+  /** Emoji / короткий символ для карточки в списке опросников (админка). */
+  sticker?: string
 }
 
 export interface Survey {
@@ -163,6 +189,35 @@ export async function updateSurveyConfig(id: number, config: SurveyConfigData): 
     .update({ config })
     .eq('id', id)
   if (error) throw error
+}
+
+const LOGO_BUCKET =
+  (import.meta.env.VITE_SUPABASE_LOGO_BUCKET as string | undefined) ?? 'survey-logos'
+
+/** Загрузка логотипа в Supabase Storage (публичный bucket). Политики и bucket нужно создать в проекте. */
+export async function uploadSurveyLogo(surveyId: number, file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Выберите файл изображения')
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    throw new Error('Максимальный размер файла 2 МБ')
+  }
+  const raw = file.name.split('.').pop()?.toLowerCase() || 'png'
+  const ext = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(raw) ? raw : 'png'
+  const path = `${surveyId}/${crypto.randomUUID()}.${ext}`
+  const { error } = await supabase.storage.from(LOGO_BUCKET).upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (error) {
+    throw new Error(
+      error.message.includes('Bucket not found')
+        ? `Bucket «${LOGO_BUCKET}» не найден. Создайте его в Supabase Storage или задайте VITE_SUPABASE_LOGO_BUCKET.`
+        : error.message,
+    )
+  }
+  const { data } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path)
+  return data.publicUrl
 }
 
 export async function updateSurveyMeta(id: number, meta: { title?: string; description?: string; is_active?: boolean }): Promise<void> {

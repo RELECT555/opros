@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence, easeOut } from 'framer-motion'
+import { createPortal } from 'react-dom'
+import { motion, AnimatePresence, easeOut, useReducedMotion } from 'framer-motion'
 import { getSurveyById, updateSurveyConfig } from '../../lib/supabase'
-import type { Survey, SurveyQuestion, SurveyConfigData } from '../../lib/supabase'
+import type { Survey, SurveyQuestion, SurveyConfigData, QuestionMedia, QuestionMediaKind } from '../../lib/supabase'
+import { questionMediaHasContent } from '../../lib/questionMedia'
 
 interface ConfirmState {
   open: boolean
@@ -48,6 +50,7 @@ function useConfirm() {
 
 interface Props {
   surveyId: number
+  surveySlug: string
   onSurveyUpdate: (survey: Survey) => void
 }
 
@@ -61,15 +64,23 @@ function newQuestion(): SurveyQuestion {
   }
 }
 
-export function QuestionsTab({ surveyId, onSurveyUpdate }: Props) {
+function cloneConfig(c: SurveyConfigData): SurveyConfigData {
+  return JSON.parse(JSON.stringify(c)) as SurveyConfigData
+}
+
+export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
   const [_survey, setSurvey] = useState<Survey | null>(null)
   const [config, setConfig] = useState<SurveyConfigData>({ questions: [] })
+  const [baselineConfig, setBaselineConfig] = useState<SurveyConfigData | null>(null)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [dirty, setDirty] = useState(false)
   const [loading, setLoading] = useState(true)
   const { confirm, dialog } = useConfirm()
+  const reduceMotion = useReducedMotion()
+  const listTransition = reduceMotion ? { duration: 0 } : { duration: 0.18, ease: easeOut }
+  const saveBarTransition = reduceMotion ? { duration: 0 } : { duration: 0.22, ease: easeOut }
 
   useEffect(() => {
     setLoading(true)
@@ -77,7 +88,9 @@ export function QuestionsTab({ surveyId, onSurveyUpdate }: Props) {
       .then(s => {
         if (!s) return
         setSurvey(s)
-        setConfig(s.config)
+        const cfg = s.config
+        setConfig(cfg)
+        setBaselineConfig(cloneConfig(cfg))
         setDirty(false)
       })
       .finally(() => setLoading(false))
@@ -94,6 +107,7 @@ export function QuestionsTab({ surveyId, onSurveyUpdate }: Props) {
     setSaveError('')
     try {
       await updateSurveyConfig(surveyId, config)
+      setBaselineConfig(cloneConfig(config))
       setSaved(true)
       setDirty(false)
       setTimeout(() => setSaved(false), 2500)
@@ -105,6 +119,14 @@ export function QuestionsTab({ surveyId, onSurveyUpdate }: Props) {
     } finally {
       setSaving(false)
     }
+  }
+
+  function cancelChanges() {
+    if (!baselineConfig || saving) return
+    setConfig(cloneConfig(baselineConfig))
+    setDirty(false)
+    setSaved(false)
+    setSaveError('')
   }
 
   function addQuestion() {
@@ -121,6 +143,37 @@ export function QuestionsTab({ surveyId, onSurveyUpdate }: Props) {
     update(c => ({
       ...c,
       questions: c.questions.map((q, i) => i === idx ? { ...q, ...patch } : q),
+    }))
+  }
+
+  function setMediaKind(idx: number, kind: QuestionMediaKind | null) {
+    update(c => {
+      const q = c.questions[idx]
+      if (kind === null) {
+        return {
+          ...c,
+          questions: c.questions.map((qq, i) => (i === idx ? { ...qq, media: undefined } : qq)),
+        }
+      }
+      const prev = q.media
+      return {
+        ...c,
+        questions: c.questions.map((qq, i) =>
+          i === idx
+            ? { ...qq, media: { kind, url: prev?.url ?? '', alt: prev?.alt } satisfies QuestionMedia }
+            : qq,
+        ),
+      }
+    })
+  }
+
+  function patchMedia(idx: number, patch: Partial<QuestionMedia>) {
+    update(c => ({
+      ...c,
+      questions: c.questions.map((qq, i) => {
+        if (i !== idx || !qq.media) return qq
+        return { ...qq, media: { ...qq.media, ...patch } }
+      }),
     }))
   }
 
@@ -177,24 +230,50 @@ export function QuestionsTab({ surveyId, onSurveyUpdate }: Props) {
     <div className="adm-tab-content qed-root">
       {/* Header */}
       <div className="qed-header">
-        <div className="qed-header-left">
-          <div className="qed-header-icon">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M11 2.5l2.5 2.5-8 8H3v-2.5l8-8z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-            </svg>
+        <div className="qed-header-row">
+          <div className="qed-header-left">
+            <div className="qed-header-icon">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M11 2.5l2.5 2.5-8 8H3v-2.5l8-8z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className="qed-header-title">Редактор вопросов</h2>
+              <p className="qed-header-sub">{config.questions.length} {config.questions.length === 1 ? 'вопрос' : config.questions.length < 5 ? 'вопроса' : 'вопросов'}</p>
+            </div>
           </div>
-          <div>
-            <h2 className="qed-header-title">Редактор вопросов</h2>
-            <p className="qed-header-sub">{config.questions.length} {config.questions.length === 1 ? 'вопрос' : config.questions.length < 5 ? 'вопроса' : 'вопросов'}</p>
+          <div className="qed-header-actions qed-header-actions--toolbar">
+            <a
+              className="qed-open-live"
+              href={surveySlug === 'crm' ? '/crm?edit=1' : `/s/${surveySlug}?edit=1`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Откроется опрос в новой вкладке со служебным параметром ?edit=1. На карточках вопросов доступно «Изменить вопрос». Ссылку нельзя отправлять респондентам; при первом входе покажем предупреждение."
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+              Правка на сайте
+            </a>
+            <button type="button" className="qed-add-btn" onClick={addQuestion}>
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                <path d="M6.5 2v9M2 6.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              Добавить вопрос
+            </button>
           </div>
-          {dirty && <span className="qed-unsaved-dot" title="Есть несохранённые изменения" />}
         </div>
-        <button className="qed-add-btn" onClick={addQuestion}>
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-            <path d="M6.5 2v9M2 6.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-          Добавить вопрос
-        </button>
+        <div className="qed-live-hint" role="note">
+          <span className="qed-live-hint__badge">Служебно</span>
+          <p className="qed-live-hint__text">
+            Открываете живую страницу опроса: правки — на карточках вопросов. Для клиентов используйте обычную ссылку{' '}
+            <strong className="qed-live-hint__strong">без</strong>{' '}
+            <code className="qed-live-hint__code">?edit=1</code>
+            <span className="qed-live-hint__muted"> — её можно скопировать в разделе токенов или с адресной строки после снятия режима правки.</span>
+          </p>
+        </div>
       </div>
 
       {/* Welcome settings */}
@@ -249,10 +328,11 @@ export function QuestionsTab({ surveyId, onSurveyUpdate }: Props) {
             <motion.div
               key={q.id}
               className="qed-card adm-card"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2, ease: easeOut }}
+              layout={false}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={listTransition}
             >
               {/* Left panel */}
               <div className="qed-card-left">
@@ -271,6 +351,17 @@ export function QuestionsTab({ surveyId, onSurveyUpdate }: Props) {
                 <div className="qed-preview">
                   <p className="qed-preview-title">{q.title || <span className="qed-preview-empty">Заголовок...</span>}</p>
                   {q.subtitle && <p className="qed-preview-sub">{q.subtitle}</p>}
+                  {questionMediaHasContent(q.media) && q.media.kind === 'image' && (
+                    <div className="qed-preview-media">
+                      <img src={q.media.url} alt="" />
+                    </div>
+                  )}
+                  {q.media?.kind && q.media.url?.trim() && !questionMediaHasContent(q.media) && (
+                    <p className="qed-preview-media-hint">Проверьте ссылку на медиа</p>
+                  )}
+                  {q.media?.kind && (q.media.kind === 'video' || q.media.kind === 'embed') && questionMediaHasContent(q.media) && (
+                    <p className="qed-preview-media-badge">{q.media.kind === 'video' ? 'Видео' : 'Встраивание'}</p>
+                  )}
                   {(q.type === 'checkbox' || q.type === 'radio') && (
                     <div className="qed-preview-opts">
                       {q.options.slice(0, 3).map((o, i) => (
@@ -321,6 +412,71 @@ export function QuestionsTab({ surveyId, onSurveyUpdate }: Props) {
                 <div className="qed-fields">
                   <QField label="Заголовок вопроса" value={q.title} onChange={v => updateQuestion(idx, { title: v })} />
                   <QField label="Подзаголовок" value={q.subtitle ?? ''} onChange={v => updateQuestion(idx, { subtitle: v })} />
+
+                  <div className="qed-field">
+                    <label className="qed-field-label">Медиа</label>
+                    <div className="qed-type-toggle qed-type-toggle--wrap">
+                      <button
+                        type="button"
+                        className={`qed-type-btn ${!q.media ? 'qed-type-btn--active' : ''}`}
+                        onClick={() => setMediaKind(idx, null)}
+                      >
+                        Нет
+                      </button>
+                      <button
+                        type="button"
+                        className={`qed-type-btn ${q.media?.kind === 'image' ? 'qed-type-btn--active' : ''}`}
+                        onClick={() => setMediaKind(idx, 'image')}
+                      >
+                        Картинка
+                      </button>
+                      <button
+                        type="button"
+                        className={`qed-type-btn ${q.media?.kind === 'video' ? 'qed-type-btn--active' : ''}`}
+                        onClick={() => setMediaKind(idx, 'video')}
+                      >
+                        Видео
+                      </button>
+                      <button
+                        type="button"
+                        className={`qed-type-btn ${q.media?.kind === 'embed' ? 'qed-type-btn--active' : ''}`}
+                        onClick={() => setMediaKind(idx, 'embed')}
+                        title="YouTube, Vimeo или другой embed по HTTPS"
+                      >
+                        Встраивание
+                      </button>
+                    </div>
+                    {q.media && (
+                      <div className="qed-media-fields">
+                        <input
+                          className="qed-field-input"
+                          type="url"
+                          inputMode="url"
+                          placeholder={
+                            q.media.kind === 'image'
+                              ? 'https://… (ссылка на изображение)'
+                              : q.media.kind === 'video'
+                                ? 'https://… (mp4/webm или ссылка YouTube / Vimeo)'
+                                : 'Ссылка на ролик (YouTube, Vimeo) или embed-URL'
+                          }
+                          value={q.media.url}
+                          onChange={e => patchMedia(idx, { url: e.target.value })}
+                        />
+                        {(q.media.kind === 'image' || q.media.kind === 'embed') && (
+                          <input
+                            className="qed-field-input"
+                            type="text"
+                            placeholder={q.media.kind === 'image' ? 'Описание (alt)…' : 'Заголовок для плеера…'}
+                            value={q.media.alt ?? ''}
+                            onChange={e => patchMedia(idx, { alt: e.target.value })}
+                          />
+                        )}
+                        <p className="qed-media-hint">
+                          Картинка и файл видео — публичная ссылка. Для YouTube и Vimeo можно вставить обычную ссылку на ролик (в т.ч. в режиме «Видео» плеер подставится автоматически).
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Type toggle */}
                   <div className="qed-field">
@@ -401,10 +557,11 @@ export function QuestionsTab({ surveyId, onSurveyUpdate }: Props) {
                             <motion.div
                               key={oIdx}
                               className="qed-opt-row"
-                              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-                              animate={{ opacity: 1, height: 'auto', marginBottom: 6 }}
-                              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                              transition={{ duration: 0.18 }}
+                              layout={false}
+                              initial={{ opacity: 0, x: -6 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: -6 }}
+                              transition={listTransition}
                             >
                               <span className="qed-opt-handle">⠿</span>
                               <span className="qed-opt-index">{oIdx + 1}</span>
@@ -475,48 +632,63 @@ export function QuestionsTab({ surveyId, onSurveyUpdate }: Props) {
 
       {dialog}
 
-      {/* Floating save bar */}
-      <AnimatePresence>
-        {(dirty || saved) && (
-          <motion.div
-            className={`qed-save-bar ${saved ? 'qed-save-bar--saved' : ''}`}
-            initial={{ y: 40, opacity: 0, scale: 0.97 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: 40, opacity: 0, scale: 0.97 }}
-            transition={{ duration: 0.22, ease: easeOut }}
-          >
-            <div className="qed-save-bar-left">
-              {saved
-                ? <span className="qed-save-bar-icon qed-save-bar-icon--ok">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3.5 3.5 5.5-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </span>
-                : <span className="qed-save-bar-icon qed-save-bar-icon--warn">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v5.5M7 10.5v.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
-                  </span>
-              }
-              <span className="qed-save-bar-hint">
-                {saved ? 'Изменения сохранены' : 'Есть несохранённые изменения'}
-              </span>
-            </div>
-            {!saved && (
-              <motion.button
-                className="qed-save-bar-btn"
-                onClick={save}
-                whileTap={{ scale: 0.96 }}
-                disabled={saving}
+      {createPortal(
+        <div className="qed-save-bar-anchor">
+          <AnimatePresence>
+            {(dirty || saved) && (
+              <motion.div
+                className={`qed-save-bar ${saved ? 'qed-save-bar--saved' : ''}`}
+                initial={{ y: 40, opacity: 0, scale: 0.97 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                exit={{ y: 40, opacity: 0, scale: 0.97 }}
+                transition={saveBarTransition}
               >
-                {saving
-                  ? <span className="adm-spinner" />
-                  : <>
-                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 9.5V11h1.5l5-5L7 4.5l-5 5ZM10.85 3.65a.5.5 0 0 0 0-.7l-1.8-1.8a.5.5 0 0 0-.7 0L7.5 2.5 10 5l.85-.85Z" fill="currentColor"/></svg>
-                      Сохранить
-                    </>
-                }
-              </motion.button>
+                <div className="qed-save-bar-left">
+                  {saved
+                    ? <span className="qed-save-bar-icon qed-save-bar-icon--ok">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7l3.5 3.5 5.5-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </span>
+                    : <span className="qed-save-bar-icon qed-save-bar-icon--warn">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v5.5M7 10.5v.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+                      </span>
+                  }
+                  <span className="qed-save-bar-hint">
+                    {saved ? 'Изменения сохранены' : 'Есть несохранённые изменения'}
+                  </span>
+                </div>
+                {!saved && (
+                  <div className="qed-save-bar-actions">
+                    <button
+                      type="button"
+                      className="qed-save-bar-btn-cancel"
+                      onClick={cancelChanges}
+                      disabled={saving || !dirty}
+                    >
+                      Отмена
+                    </button>
+                    <motion.button
+                      type="button"
+                      className="qed-save-bar-btn"
+                      onClick={save}
+                      whileTap={{ scale: 0.96 }}
+                      disabled={saving}
+                    >
+                      {saving
+                        ? <span className="adm-spinner" />
+                        : <>
+                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 9.5V11h1.5l5-5L7 4.5l-5 5ZM10.85 3.65a.5.5 0 0 0 0-.7l-1.8-1.8a.5.5 0 0 0-.7 0L7.5 2.5 10 5l.85-.85Z" fill="currentColor"/></svg>
+                            Сохранить
+                          </>
+                      }
+                    </motion.button>
+                  </div>
+                )}
+              </motion.div>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </AnimatePresence>
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }

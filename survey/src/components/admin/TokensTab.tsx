@@ -23,11 +23,8 @@ export function TokensTab({ surveyId, surveySlug }: Props) {
   const origin = window.location.origin
 
   function tokenUrl(token: string) {
-    // CRM-опрос (slug='crm') сохраняет обратную совместимость → /?t=...
-    // Остальные опросы → /s/{slug}?t=...
-    return surveySlug === 'crm'
-      ? `${origin}/?t=${token}`
-      : `${origin}/s/${surveySlug}?t=${token}`
+    // Единый поток: всегда страница опроса (динамическая форма), не лендинг /
+    return `${origin}/s/${surveySlug}?t=${token}`
   }
 
   function load() {
@@ -73,8 +70,7 @@ export function TokensTab({ surveyId, surveySlug }: Props) {
   }
 
   function copy(token: string) {
-    const url = tokenUrl(token)
-    navigator.clipboard.writeText(url)
+    navigator.clipboard.writeText(tokenUrl(token))
     setCopied(token)
     setTimeout(() => setCopied(null), 1800)
   }

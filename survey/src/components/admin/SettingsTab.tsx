@@ -7,29 +7,30 @@ import { setGlobalTheme, getGlobalTheme } from '../../lib/supabase'
 const SETTINGS_KEY = 'askly_app_settings_v1'
 const THEME_KEY    = 'askly_admin_theme_v1'
 
-/* ── Survey appearance settings ── */
 export interface AppSettings {
   tg_enabled: boolean
   tg_bot_token: string
   tg_chat_id: string
-  appearance_accent: string
-  appearance_logo_url: string
-  appearance_footer: string
 }
 
 const SETTINGS_DEFAULTS: AppSettings = {
   tg_enabled: false,
   tg_bot_token: '',
   tg_chat_id: '',
-  appearance_accent: '#5b73f9',
-  appearance_logo_url: '',
-  appearance_footer: '',
 }
 
 export function loadAppSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY)
-    if (raw) return { ...SETTINGS_DEFAULTS, ...JSON.parse(raw) }
+    if (raw) {
+      const p = JSON.parse(raw) as Record<string, unknown>
+      return {
+        ...SETTINGS_DEFAULTS,
+        tg_enabled: Boolean(p.tg_enabled),
+        tg_bot_token: typeof p.tg_bot_token === 'string' ? p.tg_bot_token : '',
+        tg_chat_id: typeof p.tg_chat_id === 'string' ? p.tg_chat_id : '',
+      }
+    }
   } catch { /* ignore */ }
   return { ...SETTINGS_DEFAULTS }
 }
@@ -38,6 +39,8 @@ export function saveAppSettings(s: AppSettings): void {
 }
 
 /* ── Admin theme ── */
+export type AdminUiMode = 'dark' | 'light'
+
 export interface AdminTheme {
   accent:   string
   accent2:  string
@@ -45,6 +48,8 @@ export interface AdminTheme {
   orb1:     string
   orb2:     string
 }
+
+export type AdminThemeStored = AdminTheme & { preset?: string; uiMode?: AdminUiMode }
 
 export interface AdminThemePreset {
   id:    string
@@ -67,15 +72,23 @@ export const THEME_PRESETS: AdminThemePreset[] = [
 
 const THEME_DEFAULT = THEME_PRESETS[0].theme
 
-export function loadAdminTheme(): AdminTheme & { preset?: string } {
+export function loadAdminTheme(): AdminThemeStored {
   try {
     const raw = localStorage.getItem(THEME_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<AdminThemeStored>
+      return {
+        ...THEME_DEFAULT,
+        preset: 'indigo',
+        uiMode: 'dark',
+        ...parsed,
+      }
+    }
   } catch { /* ignore */ }
-  return { ...THEME_DEFAULT, preset: 'indigo' }
+  return { ...THEME_DEFAULT, preset: 'indigo', uiMode: 'dark' }
 }
 
-export function saveAdminTheme(t: AdminTheme & { preset?: string }): void {
+export function saveAdminTheme(t: AdminThemeStored): void {
   localStorage.setItem(THEME_KEY, JSON.stringify(t))
 }
 
@@ -86,32 +99,59 @@ function hexToRgb(hex: string): string {
   return `${r},${g},${b}`
 }
 
-export function applyAdminTheme(t: AdminTheme): void {
-  // Set vars on the actual .adm-root element so they override the class-level defaults
+function isHexColor(s: string): boolean {
+  return /^#[0-9A-Fa-f]{6}$/.test(s)
+}
+
+export function resolveStoredBg(t: AdminThemeStored, mode: AdminUiMode): string {
+  if (mode === 'light') {
+    const accent = isHexColor(t.accent) ? t.accent : THEME_DEFAULT.accent
+    return `color-mix(in srgb, #f8f9fa 96%, ${accent} 4%)`
+  }
+  return isHexColor(t.bg) ? t.bg : THEME_DEFAULT.bg
+}
+
+export function applyAdminTheme(t: AdminThemeStored): void {
+  const mode: AdminUiMode = t.uiMode === 'light' ? 'light' : 'dark'
+  document.documentElement.setAttribute('data-adm-mode', mode)
+  document.documentElement.style.colorScheme = mode === 'light' ? 'light' : 'dark'
+
+  const bg = resolveStoredBg(t, mode)
+
   const targets = document.querySelectorAll<HTMLElement>('.adm-root, .adm-center')
   const vars: Record<string, string> = {
-    '--accent':     t.accent,
-    '--accent-2':   t.accent2,
-    '--bg':         t.bg,
+    '--accent':     isHexColor(t.accent) ? t.accent : THEME_DEFAULT.accent,
+    '--accent-2':   isHexColor(t.accent2) ? t.accent2 : THEME_DEFAULT.accent2,
+    '--bg':         bg,
   }
-  try { vars['--accent-rgb'] = hexToRgb(t.accent) } catch { /* ignore */ }
-  try { vars['--accent-2-rgb'] = hexToRgb(t.accent2) } catch { /* ignore */ }
+  try { vars['--accent-rgb'] = hexToRgb(vars['--accent']) } catch { /* ignore */ }
+  try { vars['--accent-2-rgb'] = hexToRgb(vars['--accent-2']) } catch { /* ignore */ }
 
   targets.forEach(el => {
+    el.setAttribute('data-adm-mode', mode)
     Object.entries(vars).forEach(([k, v]) => el.style.setProperty(k, v))
-    el.style.background = t.bg
+    el.style.removeProperty('background')
   })
 
-  // Also set on :root as fallback for elements rendered outside .adm-root (portals, etc.)
   Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v))
+}
+
+export function toggleAdminUiMode(): void {
+  const t = loadAdminTheme()
+  const next: AdminThemeStored = {
+    ...t,
+    uiMode: t.uiMode === 'light' ? 'dark' : 'light',
+  }
+  saveAdminTheme(next)
+  applyAdminTheme(next)
+  window.dispatchEvent(new CustomEvent('askly-admin-mui'))
 }
 
 /* ── Main component ── */
 export function SettingsTab() {
   const [settings, setSettings] = useState<AppSettings>(loadAppSettings)
-  const [theme, setThemeState]  = useState<AdminTheme & { preset?: string }>(loadAdminTheme)
+  const [theme, setThemeState]  = useState<AdminThemeStored>(loadAdminTheme)
   const [tgSaved, setTgSaved]         = useState(false)
-  const [appSaved, setAppSaved]       = useState(false)
   const [tgTesting, setTgTesting]     = useState(false)
   const [tgTestResult, setTgTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [tokenVisible, setTokenVisible] = useState(false)
@@ -122,11 +162,20 @@ export function SettingsTab() {
   /* Apply theme on mount and whenever it changes */
   useEffect(() => { applyAdminTheme(theme) }, [theme])
 
+  /* Сайдбар меняет тему через localStorage + applyAdminTheme без обновления этого state */
+  useEffect(() => {
+    function syncThemeFromStorage() {
+      setThemeState(loadAdminTheme())
+    }
+    window.addEventListener('askly-admin-mui', syncThemeFromStorage)
+    return () => window.removeEventListener('askly-admin-mui', syncThemeFromStorage)
+  }, [])
+
   /* Load global theme from Supabase on mount (to show if it's in sync) */
   useEffect(() => {
     getGlobalTheme().then(remote => {
       if (remote) {
-        const t = remote as AdminTheme & { preset?: string }
+        const t = remote as AdminThemeStored
         // If local matches remote preset, mark as published
         if (t.preset === theme.preset && t.accent === theme.accent) setPublished(true)
       }
@@ -137,13 +186,18 @@ export function SettingsTab() {
     setSettings(s => ({ ...s, [key]: value }))
   }
 
-  function setTheme(t: AdminTheme & { preset?: string }) {
+  function setTheme(t: AdminThemeStored) {
     setThemeState(t)
     saveAdminTheme(t)
+    window.dispatchEvent(new CustomEvent('askly-admin-mui'))
   }
 
   function applyPreset(preset: AdminThemePreset) {
-    setTheme({ ...preset.theme, preset: preset.id })
+    setTheme({
+      ...preset.theme,
+      preset: preset.id,
+      uiMode: theme.uiMode ?? 'dark',
+    })
     setPublished(false)
   }
 
@@ -152,11 +206,18 @@ export function SettingsTab() {
     setPublished(false)
   }
 
+  function setUiMode(mode: AdminUiMode) {
+    if (theme.uiMode === mode) return
+    setTheme({ ...theme, uiMode: mode })
+    setPublished(false)
+  }
+
   async function publishTheme() {
     setPublishing(true)
     setPublishErr(null)
     try {
-      await setGlobalTheme(theme)
+      const { uiMode: _omit, ...forRemote } = theme
+      await setGlobalTheme(forRemote)
       setPublished(true)
       setTimeout(() => setPublished(false), 3000)
     } catch (e: unknown) {
@@ -195,13 +256,6 @@ export function SettingsTab() {
     }
   }
 
-  /* Save Appearance section */
-  function saveAppearance() {
-    saveAppSettings(settings)
-    setAppSaved(true)
-    setTimeout(() => setAppSaved(false), 2000)
-  }
-
   return (
     <div className="set-root">
       {/* Page header */}
@@ -209,7 +263,7 @@ export function SettingsTab() {
         <div className="set-page-header-icon"><GearIcon /></div>
         <div>
           <h2 className="set-page-title">Настройки</h2>
-          <p className="set-page-sub">Тема, интеграции и внешний вид</p>
+          <p className="set-page-sub">Тема админки и интеграции</p>
         </div>
       </div>
 
@@ -217,6 +271,23 @@ export function SettingsTab() {
       <section className="set-theme-section">
         <div className="set-section-label"><BrushIcon />Тема администратора</div>
         <div className="set-section-desc">Изменения применяются мгновенно и сохраняются в браузере.</div>
+
+        <div className="set-ui-mode-row" role="group" aria-label="Светлое или тёмное оформление">
+          <button
+            type="button"
+            className={`set-ui-mode-btn ${theme.uiMode !== 'light' ? 'set-ui-mode-btn--active' : ''}`}
+            onClick={() => setUiMode('dark')}
+          >
+            Тёмная
+          </button>
+          <button
+            type="button"
+            className={`set-ui-mode-btn ${theme.uiMode === 'light' ? 'set-ui-mode-btn--active' : ''}`}
+            onClick={() => setUiMode('light')}
+          >
+            Светлая
+          </button>
+        </div>
 
         {/* Presets */}
         <div className="set-presets-grid">
@@ -305,10 +376,10 @@ export function SettingsTab() {
           </AnimatePresence>
         </div>
 
-        {/* Live preview strip */}
+        {/* Live preview strip — фон как у реальной админки (в светлой теме не тянем тёмный preset.bg) */}
         <div
-          className="set-theme-preview"
-          style={{ background: theme.bg }}
+          className={`set-theme-preview${theme.uiMode === 'light' ? ' set-theme-preview--lightui' : ''}`}
+          style={{ background: resolveStoredBg(theme, theme.uiMode === 'light' ? 'light' : 'dark') }}
         >
           <div
             className="set-theme-preview-orb set-theme-preview-orb--1"
@@ -326,8 +397,9 @@ export function SettingsTab() {
                   className={`set-theme-preview-nav-item ${i === 1 ? 'set-theme-preview-nav-item--active' : ''}`}
                   style={i === 1 ? {
                     background: `${theme.accent}26`,
-                    borderColor: `${theme.accent}44`,
-                    color: '#fff',
+                    borderColor: `${theme.accent}55`,
+                    color: theme.uiMode === 'light' ? theme.accent : '#fff',
+                    fontWeight: 600,
                   } : {}}
                 >
                   {label}
@@ -440,63 +512,6 @@ export function SettingsTab() {
             добавьте его в нужную группу и укажите Chat ID этой группы.
           </div>
         </section>
-
-        {/* ── Appearance ── */}
-        <section className="set-section">
-          <div className="set-section-label"><PaletteIcon />Внешний вид опросника</div>
-          <div className="set-section-desc">Настройки применяются к публичной странице опроса.</div>
-
-          <div className="set-card">
-            <div className="set-row set-row--field">
-              <label className="set-row-label" htmlFor="accent-color">Основной цвет</label>
-              <div className="set-color-wrap">
-                <input id="accent-color" className="set-color-picker" type="color"
-                  value={settings.appearance_accent}
-                  onChange={e => set('appearance_accent', e.target.value)} />
-                <input className="set-input set-input--color-hex" type="text" maxLength={7}
-                  value={settings.appearance_accent}
-                  onChange={e => { if (/^#[0-9a-fA-F]{0,6}$/.test(e.target.value)) set('appearance_accent', e.target.value) }}
-                  spellCheck={false} />
-                <button className="set-color-reset" onClick={() => set('appearance_accent', SETTINGS_DEFAULTS.appearance_accent)} title="Сбросить">
-                  <ResetIcon />
-                </button>
-              </div>
-            </div>
-
-            <div className="set-divider" />
-
-            <div className="set-row set-row--field">
-              <label className="set-row-label" htmlFor="logo-url">Логотип (URL)</label>
-              <input id="logo-url" className="set-input" type="url"
-                placeholder="https://example.com/logo.png"
-                value={settings.appearance_logo_url}
-                onChange={e => set('appearance_logo_url', e.target.value)}
-                spellCheck={false} />
-            </div>
-            {settings.appearance_logo_url && (
-              <div className="set-logo-preview">
-                <img src={settings.appearance_logo_url} alt="Логотип" className="set-logo-img"
-                  onError={e => (e.currentTarget.style.display = 'none')} />
-              </div>
-            )}
-
-            <div className="set-divider" />
-
-            <div className="set-row set-row--field">
-              <label className="set-row-label" htmlFor="footer-text">Текст в футере</label>
-              <input id="footer-text" className="set-input" type="text"
-                placeholder="© 2025 Моя компания"
-                value={settings.appearance_footer}
-                onChange={e => set('appearance_footer', e.target.value)} />
-            </div>
-
-            <div className="set-row set-row--actions">
-              <button className={`adm-btn-primary adm-btn-save ${appSaved ? 'adm-btn-saved' : ''}`} onClick={saveAppearance}>
-                {appSaved ? <><SavedIcon /> Сохранено</> : 'Сохранить'}
-              </button>
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   )
@@ -549,17 +564,6 @@ function TelegramIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
       <path d="M21.2 4.1L3 11.2c-1.1.4-1.1 1.1-.2 1.4l4.6 1.4 1.8 5.4c.2.6.5.8.9.7l2.5-2.3 4.8 3.5c.9.5 1.5.2 1.7-.8L22.9 5c.3-1.2-.4-1.7-1.7-.9z"
         stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-function PaletteIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5"/>
-      <circle cx="8.5" cy="10" r="1.5" fill="currentColor"/>
-      <circle cx="12" cy="7.5" r="1.5" fill="currentColor"/>
-      <circle cx="15.5" cy="10" r="1.5" fill="currentColor"/>
-      <path d="M7 15.5c1.3-1.5 5.7-1.5 7 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   )
 }

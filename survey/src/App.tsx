@@ -47,7 +47,7 @@ export default function App() {
   useEffect(() => {
     loadConfigRemote().then(setCfg)
     if (token) markTokenOpened(token)
-  }, [])
+  }, [token])
 
   const validPhone = /^[\d\s\+\-\(\)]{7,}$/.test(form.phone.trim())
   const canSubmit =
@@ -92,8 +92,10 @@ export default function App() {
     setScreen('welcome')
   }
 
+  const showSurveyForm = screen === 'survey' && status !== 'done'
+
   return (
-    <div className="root">
+    <div className={showSurveyForm ? 'root root--survey-form' : screen === 'welcome' ? 'root root--welcome' : 'root'}>
       {import.meta.env.DEV && (
         <a href="/admin" className="dev-admin-link">⚙ Админка</a>
       )}

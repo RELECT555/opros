@@ -1,33 +1,25 @@
 import { useState, useEffect, memo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
-import { getSurveyBySlug, saveSurveyResponseGeneric, markTokenOpened } from '../lib/supabase'
-import type { Survey, SurveyDesign } from '../lib/supabase'
+import { getSurveyBySlug, saveSurveyResponseGeneric, markTokenOpened, updateSurveyConfig } from '../lib/supabase'
+import { isAdminAuthenticated } from '../lib/adminSession'
+import type { Survey, SurveyDesign, SurveyQuestion } from '../lib/supabase'
+import { mergeSurveyDesign, buildSurveyDesignStylesheet } from '../lib/surveyDesign'
 
 function applySurveyDesign(d?: SurveyDesign) {
-  if (!d) return
   const styleId = 'survey-design-vars'
   let el = document.getElementById(styleId) as HTMLStyleElement | null
-  if (!el) { el = document.createElement('style'); el.id = styleId; document.head.appendChild(el) }
-  const accent  = d.accent  ?? '#5b73f9'
-  const accent2 = d.accent2 ?? '#9b6dff'
-  const bg      = d.bg      ?? '#07070d'
-  const orb1    = d.orb1    ?? '#5b73f9'
-  const orb2    = d.orb2    ?? '#9b6dff'
-  const text    = d.text    ?? '#eaeaf8'
-  const text2   = d.text2   ?? '#8a8aaa'
-  el.textContent = `
-    :root {
-      --accent: ${accent}; --accent-2: ${accent2}; --bg: ${bg};
-      --text: ${text}; --text-2: ${text2};
-    }
-    body  { background: ${bg}; color: ${text}; }
-    .bg-orb--1 { background: radial-gradient(circle, ${orb1} 0%, transparent 70%) !important; }
-    .bg-orb--2 { background: radial-gradient(circle, ${orb2} 0%, transparent 70%) !important; }
-  `
+  if (!el) {
+    el = document.createElement('style')
+    el.id = styleId
+    document.head.appendChild(el)
+  }
+  el.textContent = buildSurveyDesignStylesheet(d)
 }
 import { SparklesCore } from '../components/ui/sparkles'
 import { DottedSurface } from '../components/ui/dotted-surface'
 import { WelcomeScreen } from '../components/survey/WelcomeScreen'
+import { AdminLinkWelcomeGate } from '../components/survey/AdminLinkWelcomeGate'
 import { DynamicSurveyForm, emptyFormData } from '../components/survey/DynamicSurveyForm'
 import type { DynamicFormData } from '../components/survey/DynamicSurveyForm'
 import { SuccessScreen } from '../components/survey/SuccessScreen'
@@ -53,6 +45,8 @@ interface Props {
 }
 
 export default function SurveyPage({ slug }: Props) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [adminOk, setAdminOk] = useState(() => isAdminAuthenticated())
   const [survey, setSurvey] = useState<Survey | null>(null)
   const [loadError, setLoadError] = useState('')
   const [screen, setScreen] = useState<'welcome' | 'survey'>('welcome')
@@ -61,6 +55,51 @@ export default function SurveyPage({ slug }: Props) {
   const [consent, setConsent] = useState(false)
   const [form, setForm] = useState<DynamicFormData>({ answers: {}, name: '', phone: '', email: '', comment: '' })
   const [token] = useState(() => new URLSearchParams(window.location.search).get('t') ?? undefined)
+  const editorFromUrl = searchParams.get('edit') === '1' || searchParams.get('a') === '1'
+  const showLiveEdit = editorFromUrl && adminOk
+  const [showAdminLinkGate, setShowAdminLinkGate] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const p = new URLSearchParams(window.location.search)
+    const isEdit = p.get('edit') === '1' || p.get('a') === '1'
+    if (!isEdit) return false
+    try {
+      return sessionStorage.getItem(`askly_admin_edit_gate_${slug}`) !== '1'
+    } catch {
+      return true
+    }
+  })
+
+  function acknowledgeAdminLinkGate() {
+    try {
+      sessionStorage.setItem(`askly_admin_edit_gate_${slug}`, '1')
+    } catch {
+      /* ignore */
+    }
+    setShowAdminLinkGate(false)
+  }
+  /** Панель и подсказки только при явном ?edit=1 — не на обычных ссылках для клиентов */
+  const showAdminChrome = adminOk && editorFromUrl
+
+  useEffect(() => {
+    function refreshAdmin() {
+      setAdminOk(isAdminAuthenticated())
+    }
+    window.addEventListener('focus', refreshAdmin)
+    window.addEventListener('storage', refreshAdmin)
+    return () => {
+      window.removeEventListener('focus', refreshAdmin)
+      window.removeEventListener('storage', refreshAdmin)
+    }
+  }, [])
+
+  function disableLiveEdit() {
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev)
+      p.delete('edit')
+      p.delete('a')
+      return p
+    }, { replace: true })
+  }
 
   useEffect(() => {
     getSurveyBySlug(slug)
@@ -140,13 +179,38 @@ export default function SurveyPage({ slug }: Props) {
     setConsent(false)
   }
 
+  async function handleLiveQuestionSave(updated: SurveyQuestion, index: number) {
+    if (!survey) return
+    const nextQuestions = survey.config.questions.map((qq, i) => (i === index ? updated : qq))
+    const cfg = { ...survey.config, questions: nextQuestions }
+    await updateSurveyConfig(survey.id, cfg)
+    setSurvey({ ...survey, config: cfg })
+  }
+
   const welcomeTitle  = survey.config.welcome_title ?? 'Пройдите опрос'
   const welcomeSub    = survey.config.welcome_sub   ?? survey.description ?? ''
   const welcomeBtn    = survey.config.design?.btn_label?.trim() || undefined
   const welcomeLogo   = survey.config.design?.logo_url?.trim()  || undefined
+  const dm = mergeSurveyDesign(survey.config.design)
+  const typeScaleClass  = dm.type_scale !== 'normal' ? ` root--type-${dm.type_scale}` : ''
+
+  const showSurveyForm = screen === 'survey' && status !== 'done'
 
   return (
-    <div className="root">
+    <div className={`root${showSurveyForm ? ' root--survey-form' : screen === 'welcome' ? ' root--welcome' : ''}${typeScaleClass}${showAdminChrome ? ' root--admin-context' : ''}`}>
+      {showAdminChrome && (
+        <div className="survey-admin-bar survey-admin-bar--live" role="region" aria-label="Режим администратора">
+          <div className="survey-admin-bar-inner">
+            <p className="survey-admin-bar-text">
+              <strong>Режим правки:</strong> «Изменить вопрос» на карточке. Клиенты видят так же, без панели и без <code className="survey-admin-bar-code">?edit=1</code>.
+            </p>
+            <button type="button" className="survey-admin-bar-btn survey-admin-bar-btn--ghost" onClick={disableLiveEdit}>
+              Снять правку
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-scene">
         <div className="bg-orb bg-orb--1" />
         <div className="bg-orb bg-orb--2" />
@@ -169,6 +233,9 @@ export default function SurveyPage({ slug }: Props) {
             questionCount={totalSections}
             btnLabel={welcomeBtn}
             logoUrl={welcomeLogo}
+            badgeText={dm.welcome_badge}
+            hintLeft={dm.welcome_hint_1}
+            hintRight={dm.welcome_hint_2}
           />
         ) : status === 'done' ? (
           <SuccessScreen key="done" onReset={handleReset} />
@@ -185,8 +252,16 @@ export default function SurveyPage({ slug }: Props) {
             handleSubmit={handleSubmit}
             errorMsg={errorMsg}
             token={token}
+            liveEdit={showLiveEdit}
+            onLiveQuestionSave={showLiveEdit ? handleLiveQuestionSave : undefined}
           />
         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAdminLinkGate ? (
+          <AdminLinkWelcomeGate key="admin-link-gate" onContinue={acknowledgeAdminLinkGate} />
+        ) : null}
       </AnimatePresence>
     </div>
   )

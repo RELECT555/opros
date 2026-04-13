@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence, easeOut } from 'framer-motion'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { motion, AnimatePresence, easeOut, useReducedMotion } from 'framer-motion'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
-import { adminTheme } from './lib/muiTheme'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Switch from '@mui/material/Switch'
+import { createAdminMuiTheme } from './lib/muiTheme'
 import { LoginScreen } from './components/admin/LoginScreen'
 import { ResponsesTab } from './components/admin/ResponsesTab'
 import { AnalyticsTab } from './components/admin/AnalyticsTab'
@@ -10,29 +13,133 @@ import { TokensTab } from './components/admin/TokensTab'
 import { QuestionsTab } from './components/admin/QuestionsTab'
 import { DesignTab } from './components/admin/DesignTab'
 import { SurveysListTab } from './components/admin/SurveysListTab'
-import { SettingsTab, loadAdminTheme, applyAdminTheme } from './components/admin/SettingsTab'
+import { SettingsTab, loadAdminTheme, applyAdminTheme, toggleAdminUiMode } from './components/admin/SettingsTab'
+import { getSurveys, getSurveyById } from './lib/supabase'
 import type { Survey } from './lib/supabase'
+import { markAdminAuthenticated, isAdminAuthenticated } from './lib/adminSession'
 import './Admin.css'
 
 type Tab = 'responses' | 'analytics' | 'tokens' | 'questions' | 'design' | 'settings'
 
+const ADMIN_TAB_KEYS: Tab[] = ['responses', 'analytics', 'tokens', 'questions', 'design']
+
 export default function AdminPage() {
-  const [authed, setAuthed] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [authed, setAuthed] = useState(() => isAdminAuthenticated())
   const [activeSurvey, setActiveSurvey] = useState<Survey | null>(null)
   const [tab, setTab] = useState<Tab>('responses')
   const [collapsed, setCollapsed] = useState(false)
+  const [surveysListOpen, setSurveysListOpen] = useState(true)
+  const [sidebarSurveys, setSidebarSurveys] = useState<Survey[]>([])
+  const [muiMode, setMuiMode] = useState<'light' | 'dark'>(() =>
+    loadAdminTheme().uiMode === 'light' ? 'light' : 'dark',
+  )
+  const reduceMotion = useReducedMotion()
+  const muiTheme = useMemo(() => createAdminMuiTheme(muiMode), [muiMode])
 
-  useEffect(() => { applyAdminTheme(loadAdminTheme()) }, [])
+  const handleSurveySelect = useCallback((survey: Survey) => {
+    setActiveSurvey(survey)
+    getSurveys().then(setSidebarSurveys).catch(() => {})
+  }, [])
+
+  const handleSurveyUpdate = useCallback((s: Survey) => {
+    setActiveSurvey(s)
+    setSidebarSurveys(prev => prev.map(x => (x.id === s.id ? s : x)))
+  }, [])
+
+  const hadSurveyRef = useRef(false)
+
+  useEffect(() => {
+    if (!authed) return
+    getSurveys().then(setSidebarSurveys).catch(() => {})
+  }, [authed])
+
+  useEffect(() => {
+    if (!authed) return
+    const has = !!activeSurvey
+    if (!has && hadSurveyRef.current) {
+      getSurveys().then(setSidebarSurveys).catch(() => {})
+    }
+    hadSurveyRef.current = has
+  }, [authed, activeSurvey])
+
+  const tabMotionTransition = reduceMotion
+    ? { duration: 0 }
+    : { duration: 0.25, ease: easeOut }
+
+  useEffect(() => {
+    applyAdminTheme(loadAdminTheme())
+  }, [authed, muiMode])
+
+  useEffect(() => {
+    if (!authed) return
+    const sid = searchParams.get('survey')
+    if (!sid) return
+    const id = Number(sid)
+    if (!Number.isFinite(id) || id < 1) return
+    const rawTab = searchParams.get('tab')
+    const nextTab: Tab =
+      rawTab && ADMIN_TAB_KEYS.includes(rawTab as Tab) ? (rawTab as Tab) : 'questions'
+    let cancelled = false
+    getSurveyById(id)
+      .then(s => {
+        if (cancelled) return
+        if (!s) {
+          setSearchParams(prev => {
+            const p = new URLSearchParams(prev)
+            p.delete('survey')
+            p.delete('tab')
+            return p
+          }, { replace: true })
+          return
+        }
+        setActiveSurvey(s)
+        setTab(nextTab)
+        setSearchParams(prev => {
+          const p = new URLSearchParams(prev)
+          p.delete('survey')
+          p.delete('tab')
+          return p
+        }, { replace: true })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [authed, searchParams, setSearchParams])
+
+  useEffect(() => {
+    function syncMuiFromStorage() {
+      setMuiMode(loadAdminTheme().uiMode === 'light' ? 'light' : 'dark')
+    }
+    window.addEventListener('askly-admin-mui', syncMuiFromStorage)
+    return () => window.removeEventListener('askly-admin-mui', syncMuiFromStorage)
+  }, [])
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (!authed) {
+      root.style.removeProperty('--adm-sidebar-width')
+      return
+    }
+    root.style.setProperty('--adm-sidebar-width', collapsed ? '64px' : '220px')
+    return () => {
+      root.style.removeProperty('--adm-sidebar-width')
+    }
+  }, [collapsed, authed])
 
   if (!authed) return (
-    <ThemeProvider theme={adminTheme}>
+    <ThemeProvider theme={muiTheme}>
       <CssBaseline />
-      <LoginScreen onAuth={() => setAuthed(true)} />
+      <LoginScreen
+        onAuth={() => {
+          markAdminAuthenticated()
+          setAuthed(true)
+        }}
+      />
     </ThemeProvider>
   )
 
   return (
-    <ThemeProvider theme={adminTheme}>
+    <ThemeProvider theme={muiTheme}>
     <CssBaseline />
     <div className="adm-root">
       <div className="adm-bg-scene">
@@ -43,11 +150,7 @@ export default function AdminPage() {
 
       <div className="adm-layout">
         {/* Sidebar */}
-        <motion.aside
-          className={`adm-sidebar ${collapsed ? 'adm-sidebar--collapsed' : ''}`}
-          animate={{ width: collapsed ? 64 : 220 }}
-          transition={{ duration: 0.25, ease: easeOut }}
-        >
+        <aside className={`adm-sidebar ${collapsed ? 'adm-sidebar--collapsed' : ''}`}>
           <div className="adm-sidebar-top">
             {!collapsed && (
               <div className="adm-sidebar-brand">
@@ -72,67 +175,109 @@ export default function AdminPage() {
           </div>
 
           <nav className="adm-nav">
-            <button
-              className={`adm-nav-item ${!activeSurvey && tab !== 'settings' ? 'adm-nav-item--active' : ''}`}
-              onClick={() => { setActiveSurvey(null); setTab('responses') }}
-              title="Опросники"
-            >
-              <GridIcon />
-              {!collapsed && <span>Опросники</span>}
-            </button>
-
-            {activeSurvey && (
-              <>
-                {!collapsed && (
-                  <div className="adm-nav-divider">
-                    <span className="adm-nav-divider-label" title={activeSurvey.title}>
-                      {activeSurvey.title.length > 18 ? activeSurvey.title.slice(0, 18) + '…' : activeSurvey.title}
-                    </span>
-                  </div>
+            <div className="adm-nav-group">
+              <div
+                className={`adm-nav-group-head ${collapsed ? 'adm-nav-group-head--collapsed' : ''} ${!collapsed && sidebarSurveys.length > 0 ? 'adm-nav-group-head--has-chevron' : ''} ${!collapsed ? 'adm-nav-bundled' : ''}`}
+              >
+                {!collapsed && sidebarSurveys.length > 0 && (
+                  <button
+                    type="button"
+                    className="adm-nav-chevron"
+                    onClick={() => setSurveysListOpen(o => !o)}
+                    aria-expanded={surveysListOpen}
+                    title={surveysListOpen ? 'Скрыть список опросников' : 'Показать список опросников'}
+                  >
+                    <NavChevronIcon open={surveysListOpen} />
+                  </button>
                 )}
-                {collapsed && <div className="adm-nav-divider-dot" />}
                 <button
-                  className={`adm-nav-item ${tab === 'responses' ? 'adm-nav-item--active' : ''}`}
-                  onClick={() => setTab('responses')}
-                  title="Заявки"
+                  className={`adm-nav-item adm-nav-group-trigger ${!activeSurvey && tab !== 'settings' ? 'adm-nav-item--active' : ''}`}
+                  onClick={() => { setActiveSurvey(null); setTab('responses') }}
+                  title="Все опросники"
                 >
-                  <InboxIcon />
-                  {!collapsed && <span>Заявки</span>}
+                  <GridIcon />
+                  {!collapsed && <span>Опросники</span>}
                 </button>
-                <button
-                  className={`adm-nav-item ${tab === 'analytics' ? 'adm-nav-item--active' : ''}`}
-                  onClick={() => setTab('analytics')}
-                  title="Аналитика"
-                >
-                  <ChartIcon />
-                  {!collapsed && <span>Аналитика</span>}
-                </button>
-                <button
-                  className={`adm-nav-item ${tab === 'tokens' ? 'adm-nav-item--active' : ''}`}
-                  onClick={() => setTab('tokens')}
-                  title="Токены"
-                >
-                  <LinkIcon />
-                  {!collapsed && <span>Токены</span>}
-                </button>
-                <button
-                  className={`adm-nav-item ${tab === 'questions' ? 'adm-nav-item--active' : ''}`}
-                  onClick={() => setTab('questions')}
-                  title="Вопросы"
-                >
-                  <EditIcon />
-                  {!collapsed && <span>Вопросы</span>}
-                </button>
-                <button
-                  className={`adm-nav-item ${tab === 'design' ? 'adm-nav-item--active' : ''}`}
-                  onClick={() => setTab('design')}
-                  title="Дизайн"
-                >
-                  <BrushIcon />
-                  {!collapsed && <span>Дизайн</span>}
-                </button>
-              </>
-            )}
+              </div>
+
+              {!collapsed && surveysListOpen && sidebarSurveys.length > 0 && (
+                <div className="adm-nav-surveys-nest">
+                  <div className="adm-nav-surveys-scroll" role="list">
+                    {sidebarSurveys.map(s => {
+                      const label = s.title.length > 28 ? `${s.title.slice(0, 28)}…` : s.title
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          role="listitem"
+                          className={`adm-nav-survey-pick ${activeSurvey?.id === s.id ? 'adm-nav-survey-pick--current' : ''}`}
+                          onClick={() => handleSurveySelect(s)}
+                          title={s.title}
+                        >
+                          <span className="adm-nav-survey-pick-icon" aria-hidden>
+                            <SurveyListRowIcon />
+                          </span>
+                          <span className="adm-nav-survey-pick-label">{label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {activeSurvey && (
+                <>
+                  {!collapsed && (
+                    <div className="adm-nav-divider adm-nav-divider--nested">
+                      <span className="adm-nav-divider-label" title={activeSurvey.title}>
+                        {activeSurvey.title.length > 18 ? activeSurvey.title.slice(0, 18) + '…' : activeSurvey.title}
+                      </span>
+                    </div>
+                  )}
+                  {collapsed && <div className="adm-nav-divider-dot" />}
+                  <button
+                    className={`adm-nav-item ${tab === 'responses' ? 'adm-nav-item--active' : ''}`}
+                    onClick={() => setTab('responses')}
+                    title="Заявки"
+                  >
+                    <InboxIcon />
+                    {!collapsed && <span>Заявки</span>}
+                  </button>
+                  <button
+                    className={`adm-nav-item ${tab === 'analytics' ? 'adm-nav-item--active' : ''}`}
+                    onClick={() => setTab('analytics')}
+                    title="Аналитика"
+                  >
+                    <ChartIcon />
+                    {!collapsed && <span>Аналитика</span>}
+                  </button>
+                  <button
+                    className={`adm-nav-item ${tab === 'tokens' ? 'adm-nav-item--active' : ''}`}
+                    onClick={() => setTab('tokens')}
+                    title="Токены"
+                  >
+                    <LinkIcon />
+                    {!collapsed && <span>Токены</span>}
+                  </button>
+                  <button
+                    className={`adm-nav-item ${tab === 'questions' ? 'adm-nav-item--active' : ''}`}
+                    onClick={() => setTab('questions')}
+                    title="Вопросы"
+                  >
+                    <EditIcon />
+                    {!collapsed && <span>Вопросы</span>}
+                  </button>
+                  <button
+                    className={`adm-nav-item ${tab === 'design' ? 'adm-nav-item--active' : ''}`}
+                    onClick={() => setTab('design')}
+                    title="Дизайн"
+                  >
+                    <BrushIcon />
+                    {!collapsed && <span>Дизайн</span>}
+                  </button>
+                </>
+              )}
+            </div>
           </nav>
 
           <div className="adm-sidebar-bottom">
@@ -145,16 +290,55 @@ export default function AdminPage() {
               {!collapsed && <span>Настройки</span>}
             </button>
 
+            {collapsed ? (
+              <div
+                className="adm-theme-mui-row adm-theme-mui-row--collapsed"
+                title={muiMode === 'dark' ? 'Тёмная тема' : 'Светлая тема'}
+              >
+                <Switch
+                  checked={muiMode === 'dark'}
+                  onChange={(_, checked) => {
+                    if (checked !== (muiMode === 'dark')) toggleAdminUiMode()
+                  }}
+                  size="small"
+                  color="primary"
+                  inputProps={{ 'aria-label': 'Тёмная тема оформления админки' }}
+                />
+              </div>
+            ) : (
+              <FormControlLabel
+                className="adm-theme-form-label"
+                labelPlacement="start"
+                control={
+                  <Switch
+                    checked={muiMode === 'dark'}
+                    onChange={(_, checked) => {
+                      if (checked !== (muiMode === 'dark')) toggleAdminUiMode()
+                    }}
+                    size="small"
+                    color="primary"
+                    inputProps={{ 'aria-label': 'Тёмная тема оформления админки' }}
+                  />
+                }
+                label={
+                  <span className="adm-theme-switch-caption">
+                    {muiMode === 'dark' ? <MoonIcon /> : <SunIcon />}
+                    <span>{muiMode === 'dark' ? 'Тёмная тема' : 'Светлая тема'}</span>
+                  </span>
+                }
+              />
+            )}
+
             {activeSurvey && (
               <a
                 className="adm-survey-link"
-                href={`/s/${activeSurvey.slug}`}
+                href={activeSurvey.slug === 'crm' ? `/crm?edit=1` : `/s/${activeSurvey.slug}?edit=1`}
                 target="_blank"
                 rel="noopener"
-                title="Открыть опрос"
+                title="Правка на живой странице (?edit=1). На карточках — «Изменить вопрос». Служебная ссылка, не для респондентов."
               >
                 <ExternalIcon />
-                {!collapsed && <span>Открыть опрос</span>}
+                {!collapsed && <span>Правка на сайте</span>}
               </a>
             )}
 
@@ -167,7 +351,7 @@ export default function AdminPage() {
               {!collapsed && <span>Свернуть</span>}
             </button>
           </div>
-        </motion.aside>
+        </aside>
 
         {/* Main */}
         <main className="adm-main">
@@ -178,7 +362,7 @@ export default function AdminPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.25, ease: easeOut }}
+                transition={tabMotionTransition}
               >
                 <SettingsTab />
               </motion.div>
@@ -188,9 +372,9 @@ export default function AdminPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.25, ease: easeOut }}
+                transition={tabMotionTransition}
               >
-                <SurveysListTab onSelect={survey => { setActiveSurvey(survey); setTab('responses') }} />
+                <SurveysListTab onSelect={handleSurveySelect} />
               </motion.div>
             ) : (
               <motion.div
@@ -198,13 +382,13 @@ export default function AdminPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.25, ease: easeOut }}
+                transition={tabMotionTransition}
               >
                 {tab === 'responses'  ? <ResponsesTab  surveyId={activeSurvey.id} survey={activeSurvey} /> :
                  tab === 'analytics' ? <AnalyticsTab  surveyId={activeSurvey.id} /> :
                  tab === 'tokens'    ? <TokensTab     surveyId={activeSurvey.id} surveySlug={activeSurvey.slug} /> :
-                 tab === 'design'    ? <DesignTab     surveyId={activeSurvey.id} onSurveyUpdate={s => setActiveSurvey(s)} /> :
-                 <QuestionsTab surveyId={activeSurvey.id} onSurveyUpdate={s => setActiveSurvey(s)} />}
+                 tab === 'design'    ? <DesignTab     surveyId={activeSurvey.id} onSurveyUpdate={handleSurveyUpdate} /> :
+                 <QuestionsTab surveyId={activeSurvey.id} surveySlug={activeSurvey.slug} onSurveyUpdate={handleSurveyUpdate} />}
               </motion.div>
             )}
           </AnimatePresence>
@@ -216,6 +400,35 @@ export default function AdminPage() {
 }
 
 /* ── Icons ── */
+function NavChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="adm-nav-chevron-svg"
+      style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+      aria-hidden
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
+function SurveyListRowIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+    </svg>
+  )
+}
+
 function GridIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -288,6 +501,23 @@ function CollapseIcon({ collapsed }: { collapsed: boolean }) {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.25s', transform: collapsed ? 'rotate(180deg)' : 'none' }}>
       <polyline points="15 18 9 12 15 6"/>
+    </svg>
+  )
+}
+
+function SunIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
     </svg>
   )
 }

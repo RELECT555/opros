@@ -217,18 +217,13 @@ export function SurveysListTab({ onSelect }: Props) {
               key={survey.id}
               className="surveys-card"
               onClick={() => onSelect(survey)}
-              initial={{ opacity: 0, y: 14 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.28, delay: idx * 0.05, ease: easeOut }}
-              whileTap={{ scale: 0.985 }}
+              transition={{ duration: 0.3, delay: idx * 0.06, ease: easeOut }}
+              whileHover={{ y: -5, scale: 1.015, transition: { type: 'spring', stiffness: 380, damping: 28 } }}
+              whileTap={{ scale: 0.975, transition: { type: 'spring', stiffness: 500, damping: 30 } }}
+              style={{ originY: 1 }}
             >
-              {/* Hover corner marks — inspired by 21st dark grid */}
-              <span className="surveys-card-corner surveys-card-corner--tl" aria-hidden="true" />
-              <span className="surveys-card-corner surveys-card-corner--tr" aria-hidden="true" />
-              <span className="surveys-card-corner surveys-card-corner--bl" aria-hidden="true" />
-              <span className="surveys-card-corner surveys-card-corner--br" aria-hidden="true" />
-
-              {/* Inner hover glow */}
               <span className="surveys-card-glow" aria-hidden="true" />
 
               <div className="surveys-card-top">
@@ -239,17 +234,20 @@ export function SurveysListTab({ onSelect }: Props) {
                 <span className="surveys-card-date">{formatDate(survey.created_at)}</span>
               </div>
 
-              <div className="surveys-card-icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                  <path d="M3 5h12M3 9h8M3 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
+              <div className="surveys-card-main">
+                <div className="surveys-card-icon" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 18 18" fill="none">
+                    <path d="M3 5h12M3 9h8M3 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </div>
+                <div className="surveys-card-copy">
+                  <h3 className="surveys-card-title">{survey.title}</h3>
+                  {survey.description
+                    ? <p className="surveys-card-desc">{survey.description}</p>
+                    : <p className="surveys-card-desc surveys-card-desc--empty">Без описания</p>
+                  }
+                </div>
               </div>
-
-              <h3 className="surveys-card-title">{survey.title}</h3>
-              {survey.description
-                ? <p className="surveys-card-desc">{survey.description}</p>
-                : <p className="surveys-card-desc surveys-card-desc--empty">Без описания</p>
-              }
 
               <div className="surveys-card-footer">
                 <span className="surveys-card-slug">/s/{survey.slug}</span>

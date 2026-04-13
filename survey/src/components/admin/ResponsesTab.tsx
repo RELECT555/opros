@@ -8,7 +8,6 @@ import {
   updateResponseStatus, updateManagerNote, PAGE_SIZE,
 } from '../../lib/supabase'
 import type { SurveyRecord, TokenRecord, ResponseStatus, Survey } from '../../lib/supabase'
-import { DataRow } from './shared'
 
 const CURRENT_LABELS: Record<string, string> = {
   yes:       'Да, используем CRM',
@@ -228,10 +227,17 @@ export function ResponsesTab({ surveyId, survey }: Props) {
               >
                 <div className="adm-response-left">
                   <span className="adm-response-num">#{total - page * PAGE_SIZE - idx}</span>
-                  <div>
+                  <div className="adm-response-id-block">
                     <p className="adm-response-name">{row.name}</p>
-                    <p className="adm-response-phone">{row.phone}</p>
-                    {displayEmail && <p className="adm-response-email">{displayEmail}</p>}
+                    <p className="adm-response-meta-line">
+                      <span className="adm-response-meta-item">{row.phone}</span>
+                      {displayEmail && (
+                        <>
+                          <span className="adm-response-meta-sep" aria-hidden>·</span>
+                          <span className="adm-response-meta-item adm-response-meta-item--mail">{displayEmail}</span>
+                        </>
+                      )}
+                    </p>
                   </div>
                 </div>
                 <div className="adm-response-right">
@@ -255,75 +261,93 @@ export function ResponsesTab({ surveyId, survey }: Props) {
                     transition={{ duration: 0.28, ease: easeOut }}
                   >
                     <div className="adm-response-body-inner">
-                      <DataRow label="Имя" value={row.name} highlight />
-                      <DataRow label="Телефон" value={row.phone} highlight />
-                      {row.email && <DataRow label="Email" value={row.email} highlight />}
-                      {tokenEmail && <DataRow label="Email (источник)" value={tokenEmail} highlight />}
-                      <div className="adm-divider" />
-                      {/* Ответы на вопросы */}
-                      {row.answers && Object.keys(row.answers).length > 0
-                        ? survey.config.questions.map(q => {
-                            const ans = row.answers![q.id]
-                            if (ans === undefined || ans === null || ans === '' || (Array.isArray(ans) && ans.length === 0)) return null
-                            const otherText = row.answers![q.id + '__other'] as string | undefined
-                            let val: string
-                            if (Array.isArray(ans)) {
-                              val = ans
-                                .map(v => v === '__other__' ? (otherText ? `Другое: ${otherText}` : 'Другое') : v)
-                                .join(', ')
-                            } else if (ans === '__other__') {
-                              val = otherText ? `Другое: ${otherText}` : 'Другое'
-                            } else {
-                              val = String(ans)
-                            }
-                            return <DataRow key={q.id} label={q.title} value={val} />
-                          })
-                        : <>
-                            <DataRow label="Текущий статус" value={CURRENT_LABELS[row.current_crm] ?? row.current_crm} />
-                            <DataRow label="Цель CRM" value={row.crm_purpose?.join(', ')} />
-                            <DataRow label="Использовали раньше" value={row.crm_used_before?.join(', ')} />
-                          </>
-                      }
-                      {row.comment && <DataRow label="Комментарий клиента" value={row.comment} />}
-
-                      <div className="adm-divider" />
-                      {/* Заметка менеджера */}
-                      <div className="adm-manager-note">
-                        <label className="adm-data-label" htmlFor={`note-${row.id}`}>Заметка менеджера</label>
-                        <textarea
-                          id={`note-${row.id}`}
-                          className="adm-note-textarea"
-                          placeholder="Добавьте заметку..."
-                          value={noteValues[row.id] ?? ''}
-                          onChange={e => setNoteValues(prev => ({ ...prev, [row.id]: e.target.value }))}
-                          rows={2}
-                        />
-                        <button
-                          className="adm-btn-save-note"
-                          onClick={() => saveNote(row.id)}
-                          disabled={savingNote === row.id}
-                        >
-                          {savingNote === row.id ? <span className="adm-spinner adm-spinner--sm" /> : 'Сохранить'}
-                        </button>
-                      </div>
-
-                      <div className="adm-divider" />
-                      <div className="adm-status-row">
-                        <span className="adm-data-label">Изменить статус</span>
-                        <div className="adm-status-btns">
-                          {STATUS_ORDER.map(s => (
-                            <button
-                              key={s}
-                              className={`adm-status-btn ${STATUS_CONFIG[s].cls} ${rowStatus === s ? 'adm-status-btn--active' : ''}`}
-                              onClick={() => rowStatus !== s && changeStatus(row.id, s)}
-                              disabled={updatingStatus === row.id}
-                            >
-                              <span className="adm-status-dot" />
-                              {STATUS_CONFIG[s].label}
-                            </button>
-                          ))}
+                      {row.token && tokenEmail && row.email && row.email.trim() !== tokenEmail.trim() && (
+                        <div className="adm-response-extra-meta">
+                          <span className="adm-response-extra-label">Персональная ссылка</span>
+                          <span className="adm-response-extra-value">{tokenEmail}</span>
+                          <span className="adm-response-extra-hint">отличается от email в форме</span>
                         </div>
-                      </div>
+                      )}
+
+                      <section className="adm-response-section">
+                        <h3 className="adm-response-section-title">Ответы анкеты</h3>
+                        <div className="adm-response-answers">
+                          {row.answers && Object.keys(row.answers).length > 0
+                            ? survey.config.questions.map(q => {
+                                const ans = row.answers![q.id]
+                                if (ans === undefined || ans === null || ans === '' || (Array.isArray(ans) && ans.length === 0)) return null
+                                const otherText = row.answers![q.id + '__other'] as string | undefined
+                                let val: string
+                                if (Array.isArray(ans)) {
+                                  val = ans
+                                    .map(v => v === '__other__' ? (otherText ? `Другое: ${otherText}` : 'Другое') : v)
+                                    .join(', ')
+                                } else if (ans === '__other__') {
+                                  val = otherText ? `Другое: ${otherText}` : 'Другое'
+                                } else {
+                                  val = String(ans)
+                                }
+                                return <AnswerBlock key={q.id} title={q.title} value={val} />
+                              })
+                            : (
+                              <>
+                                <AnswerBlock title="Текущий статус" value={CURRENT_LABELS[row.current_crm] ?? row.current_crm} />
+                                <AnswerBlock title="Цель CRM" value={row.crm_purpose?.filter(Boolean).join(', ') || '—'} />
+                                <AnswerBlock title="Использовали раньше" value={row.crm_used_before?.filter(Boolean).join(', ') || '—'} />
+                              </>
+                            )}
+                          {row.comment && (
+                            <AnswerBlock title="Комментарий клиента" value={row.comment} />
+                          )}
+                        </div>
+                      </section>
+
+                      <section className="adm-response-section">
+                        <h3 className="adm-response-section-title">Статус заявки</h3>
+                        <div className="adm-status-row adm-status-row--full">
+                          <div className="adm-status-btns">
+                            {STATUS_ORDER.map(s => (
+                              <button
+                                key={s}
+                                type="button"
+                                className={`adm-status-btn ${STATUS_CONFIG[s].cls} ${rowStatus === s ? 'adm-status-btn--active' : ''}`}
+                                onClick={() => rowStatus !== s && changeStatus(row.id, s)}
+                                disabled={updatingStatus === row.id}
+                              >
+                                <span className="adm-status-dot" />
+                                {STATUS_CONFIG[s].label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </section>
+
+                      <section className="adm-response-section">
+                        <div className="adm-manager-note-head">
+                          <label className="adm-manager-note-title" htmlFor={`note-${row.id}`}>Заметка менеджера</label>
+                          <span className="adm-manager-note-hint">Только для команды, в CSV попадает отдельной колонкой</span>
+                        </div>
+                        <div className="adm-manager-note">
+                          <textarea
+                            id={`note-${row.id}`}
+                            className="adm-note-textarea"
+                            placeholder="Краткий контекст звонка, договорённости…"
+                            value={noteValues[row.id] ?? ''}
+                            onChange={e => setNoteValues(prev => ({ ...prev, [row.id]: e.target.value }))}
+                            rows={3}
+                          />
+                          <div className="adm-note-actions">
+                            <button
+                              type="button"
+                              className="adm-btn-save-note"
+                              onClick={() => saveNote(row.id)}
+                              disabled={savingNote === row.id}
+                            >
+                              {savingNote === row.id ? <span className="adm-spinner adm-spinner--sm" /> : 'Сохранить заметку'}
+                            </button>
+                          </div>
+                        </div>
+                      </section>
                     </div>
                   </motion.div>
                 )}
@@ -344,6 +368,15 @@ export function ResponsesTab({ surveyId, survey }: Props) {
           size="small"
         />
       )}
+    </div>
+  )
+}
+
+function AnswerBlock({ title, value }: { title: string; value: string }) {
+  return (
+    <div className="adm-qa-block">
+      <div className="adm-qa-q">{title}</div>
+      <div className="adm-qa-a">{value}</div>
     </div>
   )
 }

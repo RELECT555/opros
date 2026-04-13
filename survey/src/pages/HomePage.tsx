@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { motion, easeOut } from 'framer-motion'
 import { DottedSurface } from '../components/ui/dotted-surface'
+import { AsklyProductModal } from '../components/AsklyProductModal'
 import '../App.css'
 
 const fadeUp = (delay = 0) => ({
@@ -54,6 +56,8 @@ const steps = [
 ]
 
 export default function HomePage() {
+  const [showAsklyModal, setShowAsklyModal] = useState(false)
+
   return (
     <div className="root lp-root">
       <div className="bg-scene">
@@ -66,10 +70,17 @@ export default function HomePage() {
 
       {/* Шапка */}
       <motion.div className="lp-topbar" {...fadeUp(0)}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <img src="/favicon.svg" alt="Askly" className="welcome-brand__icon" />
+        <motion.button
+          type="button"
+          className="welcome-brand welcome-brand--inline"
+          onClick={() => setShowAsklyModal(true)}
+          whileHover={{ opacity: 0.88 }}
+          whileTap={{ scale: 0.97 }}
+          aria-label="О платформе Askly"
+        >
+          <img src="/favicon.svg" alt="" className="welcome-brand__icon" />
           <span className="welcome-brand__name">Askly</span>
-        </div>
+        </motion.button>
         <a href="/admin" className="lp-btn lp-btn--primary" style={{ padding: '8px 18px', fontSize: '13px' }}>
           Войти
         </a>
@@ -178,6 +189,10 @@ export default function HomePage() {
         </footer>
 
       </div>
+
+      {showAsklyModal && (
+        <AsklyProductModal onClose={() => setShowAsklyModal(false)} />
+      )}
     </div>
   )
 }
