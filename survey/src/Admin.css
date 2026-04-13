@@ -1846,15 +1846,14 @@ html[data-adm-mode="light"] .ls-brand {
   padding: 12px 14px 12px 16px;
   border-radius: 12px;
   box-sizing: border-box;
-  background: color-mix(in srgb, rgb(var(--accent-rgb)) 9%, var(--adm-a04));
-  border: 1px solid color-mix(in srgb, rgb(var(--accent-rgb)) 22%, var(--border));
-  border-left: 3px solid rgb(var(--accent-rgb));
+  background: color-mix(in srgb, rgba(var(--accent-rgb), 1) 9%, var(--adm-a04));
+  border: 1px solid color-mix(in srgb, rgba(var(--accent-rgb), 1) 22%, var(--border));
+  border-left: 3px solid var(--accent);
 }
 
 .adm-root[data-adm-mode="light"] .qed-live-hint {
-  background: color-mix(in srgb, rgb(var(--accent-rgb)) 7%, #ffffff 93%);
-  border-color: color-mix(in srgb, rgb(var(--accent-rgb)) 28%, var(--adm-a12) 72%);
-  border-left-color: var(--accent);
+  background: color-mix(in srgb, rgba(var(--accent-rgb), 1) 7%, #ffffff 93%);
+  border-color: color-mix(in srgb, rgba(var(--accent-rgb), 1) 28%, var(--adm-a12) 72%);
 }
 
 .qed-live-hint__badge {
