@@ -354,6 +354,30 @@ export function QuestionsTab({ surveyId, onSurveyUpdate }: Props) {
                   </div>
 
                   {(q.type === 'checkbox' || q.type === 'radio') && (
+                    <div className="qed-field">
+                      <label className="qed-field-label">Расположение вариантов</label>
+                      <div className="qed-type-toggle">
+                        <button
+                          className={`qed-type-btn ${!q.optionsLayout || q.optionsLayout === 'grid' ? 'qed-type-btn--active' : ''}`}
+                          onClick={() => updateQuestion(idx, { optionsLayout: 'grid' })}
+                          title="Варианты в виде кнопок-плиток"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><rect x="0.5" y="0.5" width="4.5" height="4.5" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="6" y="0.5" width="4.5" height="4.5" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="0.5" y="6" width="4.5" height="4.5" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="6" y="6" width="4.5" height="4.5" rx="1" stroke="currentColor" strokeWidth="1.2"/></svg>
+                          Плитки
+                        </button>
+                        <button
+                          className={`qed-type-btn ${q.optionsLayout === 'list' ? 'qed-type-btn--active' : ''}`}
+                          onClick={() => updateQuestion(idx, { optionsLayout: 'list' })}
+                          title="Варианты в один столбец"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1 2.5h9M1 5.5h9M1 8.5h9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                          Список
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {(q.type === 'checkbox' || q.type === 'radio') && (
                     <>
                       <div className="qed-field qed-field--inline">
                         <label className="qed-field-label">

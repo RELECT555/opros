@@ -1,29 +1,27 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import AdminPage from './AdminPage.tsx'
 import SurveyPage from './pages/SurveyPage.tsx'
+import HomePage from './pages/HomePage.tsx'
 
-const path = window.location.pathname
-
-// /admin → админка
-// /s/:slug → динамический опрос
-// / → старый CRM-опрос (обратная совместимость с существующими токен-ссылками)
-
-let element: React.ReactNode
-
-if (path === '/admin') {
-  element = <AdminPage />
-} else if (path.startsWith('/s/')) {
-  const slug = path.slice(3).replace(/\/$/, '') // убираем /s/ и trailing slash
-  element = <SurveyPage slug={slug} />
-} else {
-  element = <App />
+function SurveyRoute() {
+  const { slug } = useParams<{ slug: string }>()
+  return <SurveyPage slug={slug!} />
 }
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {element}
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/s/:slug" element={<SurveyRoute />} />
+        <Route path="/admin" element={<AdminPage />} />
+        {/* Обратная совместимость: старые CRM-ссылки /?t=xxx */}
+        <Route path="/crm" element={<App />} />
+      </Routes>
+    </BrowserRouter>
   </StrictMode>,
 )

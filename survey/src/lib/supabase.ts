@@ -24,6 +24,7 @@ export interface SurveyQuestion {
   hasOther?: boolean
   scaleMin?: number
   scaleMax?: number
+  optionsLayout?: 'grid' | 'list'
 }
 
 export interface SurveyDesign {

@@ -70,6 +70,13 @@ export default function SurveyPage({ slug }: Props) {
         setForm(emptyFormData(s.config.questions))
         if (token) markTokenOpened(token)
         applySurveyDesign(s.config.design)
+        // Сохраняем slug в историю посещённых опросов
+        try {
+          const visited: string[] = JSON.parse(localStorage.getItem('askly_visited') ?? '[]')
+          if (!visited.includes(s.slug)) {
+            localStorage.setItem('askly_visited', JSON.stringify([...visited, s.slug]))
+          }
+        } catch { /* ignore */ }
       })
       .catch(e => setLoadError(e.message ?? 'Ошибка загрузки опроса'))
   }, [slug])
@@ -97,11 +104,6 @@ export default function SurveyPage({ slug }: Props) {
     if (q.type === 'checkbox') return ((form.answers[q.id] as string[]) ?? []).length > 0
     return !!(form.answers[q.id])
   }
-
-  const answeredSections = [
-    ...questions.map(q => isAnswered(q)),
-    form.name.trim().length > 0 && validPhone,
-  ].filter(Boolean).length
 
   const totalSections = questions.length + 1
 
@@ -180,7 +182,6 @@ export default function SurveyPage({ slug }: Props) {
             canSubmit={canSubmit}
             consent={consent}
             setConsent={setConsent}
-            answeredSections={answeredSections}
             handleSubmit={handleSubmit}
             errorMsg={errorMsg}
             token={token}

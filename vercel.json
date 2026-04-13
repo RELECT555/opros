@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd survey && npm install && npm run build",
+  "outputDirectory": "survey/dist",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
