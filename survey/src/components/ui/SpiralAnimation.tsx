@@ -150,7 +150,7 @@ class AnimationController {
         ctx.save()
         ctx.translate(this.size / 2, this.size / 2)
         const t1 = 1  // звёзды всегда полностью раскрыты
-        const t2 = 0.55  // камера зафиксирована на глубине — никакого перелёта
+        // t2 = 0.55 — камера зафиксирована на глубине — никакого перелёта
         ctx.rotate(this.camTime * 0.25)  // непрерывное вращение без сброса
         this.drawTrail(t1)
         ctx.fillStyle = 'white'

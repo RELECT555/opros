@@ -17,7 +17,7 @@ import {
   previewOrbMultiplier,
 } from '../../lib/surveyDesign'
 import type { SurveyCtaStyle, SurveyOrbIntensity, SurveyRadiusPreset, SurveyTypeScale } from '../../lib/surveyDesign'
-import { SavedIcon } from './shared'
+import { SavedIcon } from './AdminFormParts'
 import { DesignTabSkeleton } from './AdminSkeletons'
 
 type PresetColors = Pick<
@@ -31,6 +31,7 @@ interface DesignPreset {
   design: PresetColors
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const DESIGN_PRESETS: DesignPreset[] = [
   { id: 'indigo',  name: 'Indigo',  design: { accent: '#5b73f9', accent2: '#9b6dff', bg: '#07070d', orb1: '#5b73f9', orb2: '#9b6dff', text: '#eaeaf8', text2: '#8a8aaa' } },
   { id: 'aurora',  name: 'Aurora',  design: { accent: '#00c9a7', accent2: '#00a8e8', bg: '#05080d', orb1: '#00c9a7', orb2: '#0070c0', text: '#e0f7f4', text2: '#7ab8b2' } },
@@ -118,6 +119,7 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
       const survey = await getSurveyById(surveyId)
       if (!survey) throw new Error('Опросник не найден')
       const trimmed = sticker.trim().slice(0, SURVEY_STICKER_MAX_LEN)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { sticker: _prev, ...rest } = survey.config
       const newConfig: SurveyConfigData = { ...rest, design }
       if (trimmed) newConfig.sticker = trimmed
@@ -645,7 +647,11 @@ function ColorSwatch({ label, value, onChange }: { label: string; value: string;
   const pickRef = useRef<HTMLInputElement>(null)
   const normalized = value.startsWith('#') ? value : `#${value}`
   const [hexDraft, setHexDraft] = useState(normalized)
-  useEffect(() => setHexDraft(normalized), [normalized])
+  const [prevNormalized, setPrevNormalized] = useState(normalized)
+  if (prevNormalized !== normalized) {
+    setPrevNormalized(normalized)
+    setHexDraft(normalized)
+  }
 
   async function copyHex() {
     try {

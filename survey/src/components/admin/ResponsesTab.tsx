@@ -18,6 +18,7 @@ const CURRENT_LABELS: Record<string, string> = {
   switching: 'Хотим сменить текущую',
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const STATUS_CONFIG: Record<ResponseStatus, { label: string; cls: string }> = {
   new:         { label: 'Новая',      cls: 'adm-status--new' },
   called:      { label: 'Позвонили',  cls: 'adm-status--called' },

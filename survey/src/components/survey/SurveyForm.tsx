@@ -1,6 +1,6 @@
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
 import type { Dispatch, SetStateAction } from 'react'
-import type { SurveyConfig } from '../../config'
+import type { SurveyConfig } from '../../lib/surveyConfig'
 
 export interface FormData {
   crm_purpose: string[]
@@ -47,7 +47,7 @@ export function SurveyForm({
   const CRM_LIST       = cfg.q2.options
   const CURRENT_STATUS = cfg.q3.options
 
-  const validPhone = /^[\d\s\+\-\(\)]{7,}$/.test(form.phone.trim())
+  const validPhone = /^[\d\s+\-()]{7,}$/.test(form.phone.trim())
 
   const steps = [
     { label: cfg.q1.title, done: form.crm_purpose.length > 0 },

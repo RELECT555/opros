@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { motion, easeOut } from 'framer-motion'
-import { DottedSurface } from '../components/ui/dotted-surface'
-import { AsklyProductModal } from '../components/AsklyProductModal'
-import '../App.css'
+import { DottedSurface } from '../components/ui/DottedSurface'
+import { AsklyProductModal } from '../components/marketing/AsklyProductModal'
+import '../styles/survey.css'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 24 },

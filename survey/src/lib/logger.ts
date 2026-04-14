@@ -45,10 +45,8 @@ function log(namespace: string, level: Level, msg: string, data?: unknown) {
   const styles = [LEVEL_STYLE[level], 'color:#888', 'color:#aaa']
 
   if (data !== undefined) {
-    // eslint-disable-next-line no-console
     console[level === 'debug' ? 'log' : level](prefix, ...styles, '›', msg, data)
   } else {
-    // eslint-disable-next-line no-console
     console[level === 'debug' ? 'log' : level](prefix, ...styles, '›', msg)
   }
 }

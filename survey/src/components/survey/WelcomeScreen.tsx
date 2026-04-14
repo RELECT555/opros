@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, easeOut } from 'framer-motion'
-import { AsklyProductModal } from '../AsklyProductModal'
+import { AsklyProductModal } from '../marketing/AsklyProductModal'
 
 function ClockIcon() {
   return (

@@ -1,5 +1,5 @@
 import { motion, easeOut } from 'framer-motion'
-import { SpiralAnimation } from '../ui/spiral-animation'
+import { SpiralAnimation } from '../ui/SpiralAnimation'
 
 export function SuccessScreen({ onReset }: { onReset: () => void }) {
   return (

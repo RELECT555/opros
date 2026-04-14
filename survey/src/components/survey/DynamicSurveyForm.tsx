@@ -10,6 +10,7 @@ import { isContactsDone } from './dynamic-form/utils'
 
 export type { DynamicFormData }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function emptyFormData(questions: SurveyQuestion[]): DynamicFormData {
   return emptyDynamicFormData(questions)
 }

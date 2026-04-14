@@ -27,3 +27,4 @@ export const logger = pino({
 export const dbLog       = logger.child({ module: 'db' })
 export const telegramLog = logger.child({ module: 'telegram' })
 export const httpLog     = logger.child({ module: 'http' })
+export const wsLog       = logger.child({ module: 'ws' })

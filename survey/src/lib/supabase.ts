@@ -64,6 +64,18 @@ export interface SurveyDesign {
   orb_intensity?: SurveyOrbIntensity
 }
 
+/**
+ * Подписи аналитики для ответов в колонках crm_purpose / crm_used_before / current_crm
+ * (формат без JSON answers). Задаётся в конфиге опроса — без привязки к теме «CRM».
+ */
+export type SurveyLegacyAnalytics = {
+  purpose_title?: string
+  used_before_title?: string
+  current_title?: string
+  /** Ключ — значение current_crm в БД, значение — подпись в графиках */
+  current_value_labels?: Record<string, string>
+}
+
 export interface SurveyConfigData {
   welcome_title?: string
   welcome_sub?: string
@@ -71,6 +83,8 @@ export interface SurveyConfigData {
   design?: SurveyDesign
   /** Emoji / короткий символ для карточки в списке опросников (админка). */
   sticker?: string
+  /** Заголовки блоков для legacy-колонок и подписи значений current_crm */
+  legacy_analytics?: SurveyLegacyAnalytics
 }
 
 export interface Survey {

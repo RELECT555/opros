@@ -1,8 +1,9 @@
+/* eslint-disable react-refresh/only-export-components */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom'
 import './index.css'
-import AdminPage from './AdminPage.tsx'
+import AdminPage from './pages/AdminPage.tsx'
 import SurveyPage from './pages/SurveyPage.tsx'
 import HomePage from './pages/HomePage.tsx'
 

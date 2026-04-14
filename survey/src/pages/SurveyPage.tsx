@@ -16,14 +16,14 @@ function applySurveyDesign(d?: SurveyDesign) {
   }
   el.textContent = buildSurveyDesignStylesheet(d)
 }
-import { SparklesCore } from '../components/ui/sparkles'
-import { DottedSurface } from '../components/ui/dotted-surface'
+import { SparklesCore } from '../components/ui/Sparkles'
+import { DottedSurface } from '../components/ui/DottedSurface'
 import { WelcomeScreen } from '../components/survey/WelcomeScreen'
 import { AdminLinkWelcomeGate } from '../components/survey/AdminLinkWelcomeGate'
 import { DynamicSurveyForm, emptyFormData } from '../components/survey/DynamicSurveyForm'
 import type { DynamicFormData } from '../components/survey/DynamicSurveyForm'
 import { SuccessScreen } from '../components/survey/SuccessScreen'
-import '../App.css'
+import '../styles/survey.css'
 
 const GlobalSparkles = memo(() => (
   <div className="global-sparkles" aria-hidden="true">
@@ -118,6 +118,7 @@ export default function SurveyPage({ slug }: Props) {
         } catch { /* ignore */ }
       })
       .catch(e => setLoadError(e.message ?? 'Ошибка загрузки опроса'))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
 
   if (loadError) {
@@ -137,7 +138,7 @@ export default function SurveyPage({ slug }: Props) {
   }
 
   const questions = survey.config.questions
-  const validPhone = /^[\d\s\+\-\(\)]{7,}$/.test(form.phone.trim())
+  const validPhone = /^[\d\s+\-()]{7,}$/.test(form.phone.trim())
 
   function isAnswered(q: typeof questions[number]): boolean {
     if (q.type === 'checkbox') return ((form.answers[q.id] as string[]) ?? []).length > 0

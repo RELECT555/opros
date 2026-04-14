@@ -1,6 +1,7 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { SavedIcon } from './shared'
+import { SavedIcon } from './AdminFormParts'
 import { setGlobalTheme, getGlobalTheme } from '../../lib/supabase'
 
 /* ── Storage keys ── */
@@ -185,6 +186,7 @@ export function SettingsTab() {
         if (t.preset === theme.preset && t.accent === theme.accent) setPublished(true)
       }
     }).catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function set<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
@@ -227,6 +229,7 @@ export function SettingsTab() {
     setPublishing(true)
     setPublishErr(null)
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { uiMode: _omitUi, fxMode: _omitFx, ...forRemote } = theme
       await setGlobalTheme(forRemote)
       setPublished(true)

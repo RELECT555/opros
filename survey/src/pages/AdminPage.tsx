@@ -1,24 +1,24 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence, easeOut, useReducedMotion } from 'framer-motion'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Switch from '@mui/material/Switch'
-import { createAdminMuiTheme } from './lib/muiTheme'
-import { LoginScreen } from './components/admin/LoginScreen'
-import { ResponsesTab } from './components/admin/ResponsesTab'
-import { AnalyticsTab } from './components/admin/AnalyticsTab'
-import { TokensTab } from './components/admin/TokensTab'
-import { QuestionsTab } from './components/admin/QuestionsTab'
-import { DesignTab } from './components/admin/DesignTab'
-import { SurveysListTab } from './components/admin/SurveysListTab'
-import { SettingsTab, loadAdminTheme, applyAdminTheme, toggleAdminUiMode } from './components/admin/SettingsTab'
-import { AdminSurveyBootstrapSkeleton } from './components/admin/AdminSkeletons'
-import { getSurveys, getSurveyById } from './lib/supabase'
-import type { Survey } from './lib/supabase'
-import { markAdminAuthenticated, isAdminAuthenticated } from './lib/adminSession'
-import './Admin.css'
+import { createAdminMuiTheme } from '../lib/muiTheme'
+import { LoginScreen } from '../components/admin/LoginScreen'
+import { ResponsesTab } from '../components/admin/ResponsesTab'
+import { AnalyticsTab } from '../components/admin/AnalyticsTab'
+import { TokensTab } from '../components/admin/TokensTab'
+import { QuestionsTab } from '../components/admin/QuestionsTab'
+import { DesignTab } from '../components/admin/DesignTab'
+import { SurveysListTab } from '../components/admin/SurveysListTab'
+import { SettingsTab, loadAdminTheme, applyAdminTheme, toggleAdminUiMode } from '../components/admin/SettingsTab'
+import { AdminSurveyBootstrapSkeleton } from '../components/admin/AdminSkeletons'
+import { getSurveys, getSurveyById } from '../lib/supabase'
+import type { Survey } from '../lib/supabase'
+import { markAdminAuthenticated, isAdminAuthenticated } from '../lib/adminSession'
+import '../styles/admin.css'
 
 type Tab = 'responses' | 'analytics' | 'tokens' | 'questions' | 'design' | 'settings'
 
@@ -37,6 +37,7 @@ export default function AdminPage() {
     loadAdminTheme().uiMode === 'light' ? 'light' : 'dark',
   )
   const reduceMotion = useReducedMotion()
+  const sidebarRef = useRef<HTMLElement>(null)
   const muiTheme = useMemo(() => createAdminMuiTheme(muiMode), [muiMode])
 
   const handleSurveySelect = useCallback((survey: Survey) => {
@@ -138,6 +139,26 @@ export default function AdminPage() {
     }
   }, [collapsed, authed])
 
+  useEffect(() => {
+    if (reduceMotion) return
+    const el = sidebarRef.current
+    if (!el) return
+    function onTransitionStart(ev: TransitionEvent) {
+      if (ev.target !== el || ev.propertyName !== 'width') return
+      el.classList.add('adm-sidebar--animating')
+    }
+    function onTransitionEnd(ev: TransitionEvent) {
+      if (ev.target !== el || ev.propertyName !== 'width') return
+      el.classList.remove('adm-sidebar--animating')
+    }
+    el.addEventListener('transitionstart', onTransitionStart as EventListener)
+    el.addEventListener('transitionend', onTransitionEnd as EventListener)
+    return () => {
+      el.removeEventListener('transitionstart', onTransitionStart as EventListener)
+      el.removeEventListener('transitionend', onTransitionEnd as EventListener)
+    }
+  }, [reduceMotion])
+
   if (!authed) return (
     <ThemeProvider theme={muiTheme}>
       <CssBaseline />
@@ -162,28 +183,22 @@ export default function AdminPage() {
 
       <div className="adm-layout">
         {/* Sidebar */}
-        <aside className={`adm-sidebar ${collapsed ? 'adm-sidebar--collapsed' : ''}`}>
+        <aside
+          ref={sidebarRef}
+          className={`adm-sidebar ${collapsed ? 'adm-sidebar--collapsed' : ''}`}
+        >
           <div className="adm-sidebar-top">
-            {!collapsed && (
-              <div className="adm-sidebar-brand">
-                <div className="adm-brand-mark">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                  </svg>
-                </div>
-                <div className="adm-brand-text">
-                  <span className="adm-brand-name">Askly</span>
-                  <span className="adm-brand-sub">Admin</span>
-                </div>
-              </div>
-            )}
-            {collapsed && (
+            <div className="adm-sidebar-brand">
               <div className="adm-brand-mark">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                 </svg>
               </div>
-            )}
+              <div className="adm-brand-text">
+                <span className="adm-brand-name">Askly</span>
+                <span className="adm-brand-sub">Admin</span>
+              </div>
+            </div>
           </div>
 
           <nav className="adm-nav">
@@ -191,7 +206,7 @@ export default function AdminPage() {
               <div
                 className={`adm-nav-group-head ${collapsed ? 'adm-nav-group-head--collapsed' : ''} ${!collapsed && sidebarSurveys.length > 0 ? 'adm-nav-group-head--has-chevron' : ''} ${!collapsed ? 'adm-nav-bundled' : ''}`}
               >
-                {!collapsed && sidebarSurveys.length > 0 && (
+                {sidebarSurveys.length > 0 && (
                   <button
                     type="button"
                     className="adm-nav-chevron"
@@ -208,7 +223,7 @@ export default function AdminPage() {
                   title="Все опросники"
                 >
                   <GridIcon />
-                  {!collapsed && <span>Опросники</span>}
+                  <span className="adm-nav-label">Опросники</span>
                 </button>
               </div>
 
@@ -239,21 +254,19 @@ export default function AdminPage() {
 
               {activeSurvey && (
                 <>
-                  {!collapsed && (
-                    <div className="adm-nav-divider adm-nav-divider--nested">
-                      <span className="adm-nav-divider-label" title={activeSurvey.title}>
-                        {activeSurvey.title.length > 18 ? activeSurvey.title.slice(0, 18) + '…' : activeSurvey.title}
-                      </span>
-                    </div>
-                  )}
-                  {collapsed && <div className="adm-nav-divider-dot" />}
+                  <div className="adm-nav-divider adm-nav-divider--nested">
+                    <span className="adm-nav-divider-label" title={activeSurvey.title}>
+                      {activeSurvey.title.length > 18 ? activeSurvey.title.slice(0, 18) + '…' : activeSurvey.title}
+                    </span>
+                  </div>
+                  <div className="adm-nav-divider-dot" aria-hidden />
                   <button
                     className={`adm-nav-item ${tab === 'responses' ? 'adm-nav-item--active' : ''}`}
                     onClick={() => setTab('responses')}
                     title="Заявки"
                   >
                     <InboxIcon />
-                    {!collapsed && <span>Заявки</span>}
+                    <span className="adm-nav-label">Заявки</span>
                   </button>
                   <button
                     className={`adm-nav-item ${tab === 'analytics' ? 'adm-nav-item--active' : ''}`}
@@ -261,7 +274,7 @@ export default function AdminPage() {
                     title="Аналитика"
                   >
                     <ChartIcon />
-                    {!collapsed && <span>Аналитика</span>}
+                    <span className="adm-nav-label">Аналитика</span>
                   </button>
                   <button
                     className={`adm-nav-item ${tab === 'tokens' ? 'adm-nav-item--active' : ''}`}
@@ -269,7 +282,7 @@ export default function AdminPage() {
                     title="Токены"
                   >
                     <LinkIcon />
-                    {!collapsed && <span>Токены</span>}
+                    <span className="adm-nav-label">Токены</span>
                   </button>
                   <button
                     className={`adm-nav-item ${tab === 'questions' ? 'adm-nav-item--active' : ''}`}
@@ -277,7 +290,7 @@ export default function AdminPage() {
                     title="Вопросы"
                   >
                     <EditIcon />
-                    {!collapsed && <span>Вопросы</span>}
+                    <span className="adm-nav-label">Вопросы</span>
                   </button>
                   <button
                     className={`adm-nav-item ${tab === 'design' ? 'adm-nav-item--active' : ''}`}
@@ -285,7 +298,7 @@ export default function AdminPage() {
                     title="Дизайн"
                   >
                     <BrushIcon />
-                    {!collapsed && <span>Дизайн</span>}
+                    <span className="adm-nav-label">Дизайн</span>
                   </button>
                 </>
               )}
@@ -299,14 +312,14 @@ export default function AdminPage() {
               title="Настройки"
             >
               <GearIcon />
-              {!collapsed && <span>Настройки</span>}
+              <span className="adm-nav-label">Настройки</span>
             </button>
 
-            {collapsed ? (
-              <div
-                className="adm-theme-mui-row adm-theme-mui-row--collapsed"
-                title={muiMode === 'dark' ? 'Тёмная тема' : 'Светлая тема'}
-              >
+            <FormControlLabel
+              className={`adm-theme-form-label ${collapsed ? 'adm-theme-form-label--collapsed' : ''}`}
+              labelPlacement="start"
+              title={muiMode === 'dark' ? 'Тёмная тема' : 'Светлая тема'}
+              control={
                 <Switch
                   checked={muiMode === 'dark'}
                   onChange={(_, checked) => {
@@ -321,35 +334,14 @@ export default function AdminPage() {
                     },
                   }}
                 />
-              </div>
-            ) : (
-              <FormControlLabel
-                className="adm-theme-form-label"
-                labelPlacement="start"
-                control={
-                  <Switch
-                    checked={muiMode === 'dark'}
-                    onChange={(_, checked) => {
-                      if (checked !== (muiMode === 'dark')) toggleAdminUiMode()
-                    }}
-                    size="small"
-                    color="primary"
-                    slotProps={{
-                      input: {
-                        role: 'switch',
-                        'aria-label': 'Тёмная тема оформления админки',
-                      },
-                    }}
-                  />
-                }
-                label={
-                  <span className="adm-theme-switch-caption">
-                    {muiMode === 'dark' ? <MoonIcon /> : <SunIcon />}
-                    <span>{muiMode === 'dark' ? 'Тёмная тема' : 'Светлая тема'}</span>
-                  </span>
-                }
-              />
-            )}
+              }
+              label={
+                <span className="adm-theme-switch-caption">
+                  {muiMode === 'dark' ? <MoonIcon /> : <SunIcon />}
+                  <span>{muiMode === 'dark' ? 'Тёмная тема' : 'Светлая тема'}</span>
+                </span>
+              }
+            />
 
             {activeSurvey && (
               <a
@@ -360,7 +352,7 @@ export default function AdminPage() {
                 title="Правка на живой странице (?edit=1). На карточках — «Изменить вопрос». Служебная ссылка, не для респондентов."
               >
                 <ExternalIcon />
-                {!collapsed && <span>Правка на сайте</span>}
+                <span className="adm-nav-label">Правка на сайте</span>
               </a>
             )}
 
@@ -370,7 +362,7 @@ export default function AdminPage() {
               title={collapsed ? 'Развернуть' : 'Свернуть'}
             >
               <CollapseIcon collapsed={collapsed} />
-              {!collapsed && <span>Свернуть</span>}
+              <span className="adm-collapse-label">Свернуть</span>
             </button>
           </div>
         </aside>
@@ -417,7 +409,7 @@ export default function AdminPage() {
                 transition={tabMotionTransition}
               >
                 {tab === 'responses'  ? <ResponsesTab  surveyId={activeSurvey.id} survey={activeSurvey} /> :
-                 tab === 'analytics' ? <AnalyticsTab  surveyId={activeSurvey.id} /> :
+                 tab === 'analytics' ? <AnalyticsTab surveyId={activeSurvey.id} survey={activeSurvey} /> :
                  tab === 'tokens'    ? <TokensTab     surveyId={activeSurvey.id} surveySlug={activeSurvey.slug} /> :
                  tab === 'design'    ? <DesignTab     surveyId={activeSurvey.id} onSurveyUpdate={handleSurveyUpdate} /> :
                  <QuestionsTab surveyId={activeSurvey.id} surveySlug={activeSurvey.slug} onSurveyUpdate={handleSurveyUpdate} />}
@@ -531,7 +523,18 @@ function GearIcon() {
 }
 function CollapseIcon({ collapsed }: { collapsed: boolean }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.25s', transform: collapsed ? 'rotate(180deg)' : 'none' }}>
+    <svg
+      className={`adm-collapse-icon ${collapsed ? 'adm-collapse-icon--collapsed' : ''}`}
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+           strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden={true}
+    >
       <polyline points="15 18 9 12 15 6"/>
     </svg>
   )

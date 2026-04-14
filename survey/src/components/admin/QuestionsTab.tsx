@@ -70,7 +70,7 @@ function cloneConfig(c: SurveyConfigData): SurveyConfigData {
 }
 
 export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
-  const [_survey, setSurvey] = useState<Survey | null>(null)
+  const [, setSurvey] = useState<Survey | null>(null)
   const [config, setConfig] = useState<SurveyConfigData>({ questions: [] })
   const [baselineConfig, setBaselineConfig] = useState<SurveyConfigData | null>(null)
   const [saved, setSaved] = useState(false)

@@ -93,21 +93,30 @@ export function AnalyticsTabSkeleton() {
       aria-busy="true"
       aria-label="Загрузка аналитики"
     >
-      <header className="adm-analytics-header adm-analytics-header--skeleton">
+      <header className="adm-analytics-hero adm-analytics-header--skeleton">
         <div className="adm-skel-analytics-titles">
+          <div className="adm-skeleton adm-skeleton--analytics-eyebrow" />
           <div className="adm-skeleton adm-skeleton--analytics-title" />
           <div className="adm-skeleton adm-skeleton--analytics-lead" />
         </div>
         <div className="adm-skeleton adm-skeleton--analytics-badge" />
       </header>
-      <div className="adm-kpi-grid adm-kpi-grid--skeleton">
-        {[0, 1, 2, 3, 4].map(i => (
-          <div
-            key={i}
-            className="adm-skeleton adm-skeleton--kpi-cell"
-            style={{ opacity: Math.max(0.45, 1 - i * 0.08) }}
-          />
+      <div className="adm-analytics-toc adm-analytics-toc--skeleton">
+        {[0, 1, 2].map(i => (
+          <div key={i} className="adm-skeleton adm-skeleton--toc-pill" style={{ opacity: Math.max(0.5, 1 - i * 0.12) }} />
         ))}
+      </div>
+      <div className="adm-analytics-block">
+        <div className="adm-skeleton adm-skeleton--block-head" />
+        <div className="adm-kpi-row adm-kpi-row--skeleton">
+          {[0, 1, 2, 3, 4].map(i => (
+            <div
+              key={i}
+              className="adm-skeleton adm-skeleton--kpi-cell"
+              style={{ opacity: Math.max(0.45, 1 - i * 0.08) }}
+            />
+          ))}
+        </div>
       </div>
       <div className="adm-skeleton adm-skeleton--analytics-section" />
     </div>

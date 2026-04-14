@@ -1,3 +1,6 @@
+/** JWT для Bearer (HTTP) и WebSocket `auth` — один ключ с api-client / ws-client. */
+export const ADMIN_JWT_STORAGE_KEY = 'admin_token'
+
 const ADMIN_AUTH_KEY = 'askly_admin_authed'
 
 export function markAdminAuthenticated(): void {

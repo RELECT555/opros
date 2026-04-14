@@ -1,7 +1,7 @@
 import { easeOut } from 'framer-motion'
 import type { DynamicFormData } from './types'
 
-export const phoneRegex = /^[\d\s\+\-\(\)]{7,}$/
+export const phoneRegex = /^[\d\s+\-()]{7,}$/
 
 export const slideVariants = {
   enter: (dir: number) => ({

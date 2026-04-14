@@ -1,7 +1,3 @@
-/**
- * Telegram-уведомления — аналог текущей Supabase Edge Function.
- * Вызывается из routes/responses.ts при новых ответах и смене статуса.
- */
 import { telegramLog } from '../logger.js'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -11,7 +7,13 @@ const STATUS_LABELS: Record<string, string> = {
   closed:      '✅ Закрыто',
 }
 
-interface NotifyPayload {
+function _escapeMarkdown(text: unknown): string {
+  return String(text ?? '')
+    .replace(/[_*\[\]()~`>#+\-=|{}.!\\]/g, '\\$&')
+    .slice(0, 500)
+}
+
+type NotifyPayload = {
   type: 'new_response' | 'status_change'
   data: Record<string, unknown> | null
 }
@@ -26,36 +28,43 @@ export async function sendTelegramNotification({ type, data }: NotifyPayload) {
   if (type === 'new_response') {
     text = [
       '📋 *Новая заявка*',
-      `👤 ${data.name} | 📱 ${data.phone}`,
-      data.email ? `📧 ${data.email}` : null,
-      data.comment ? `💬 ${data.comment}` : null,
+      `👤 ${_escapeMarkdown(data.name)} | 📱 ${_escapeMarkdown(data.phone)}`,
+      data.email ? `📧 ${_escapeMarkdown(data.email)}` : null,
+      data.comment ? `💬 ${_escapeMarkdown(data.comment)}` : null,
     ].filter(Boolean).join('\n')
   }
 
   if (type === 'status_change') {
-    const label = STATUS_LABELS[data.status as string] ?? data.status
+    const label = STATUS_LABELS[data.status as string] ?? _escapeMarkdown(data.status)
     text = [
       `🔄 *Статус изменён → ${label}*`,
-      `👤 ${data.name} | 📱 ${data.phone}`,
+      `👤 ${_escapeMarkdown(data.name)} | 📱 ${_escapeMarkdown(data.phone)}`,
     ].join('\n')
   }
 
+  if (!text) return
+
   telegramLog.debug({ type, chat_id: chatId }, 'отправка уведомления')
 
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: 'Markdown',
-    }),
-  })
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: 'MarkdownV2',
+      }),
+      signal: AbortSignal.timeout(10_000),
+    })
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    telegramLog.error({ status: res.status, body, type }, 'Telegram API вернул ошибку')
-  } else {
-    telegramLog.debug({ type }, 'уведомление доставлено')
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      telegramLog.error({ status: res.status, body, type }, 'Telegram API вернул ошибку')
+    } else {
+      telegramLog.debug({ type }, 'уведомление доставлено')
+    }
+  } catch (err) {
+    telegramLog.error({ err, type }, 'ошибка отправки в Telegram')
   }
 }
