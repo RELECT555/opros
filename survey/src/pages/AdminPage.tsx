@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence, easeOut, useReducedMotion } from 'framer-motion'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
@@ -13,16 +13,20 @@ import { TokensTab } from '../components/admin/TokensTab'
 import { QuestionsTab } from '../components/admin/QuestionsTab'
 import { DesignTab } from '../components/admin/DesignTab'
 import { SurveysListTab } from '../components/admin/SurveysListTab'
+import { CanvasBuilderTab } from '../components/admin/CanvasBuilderTab'
 import { SettingsTab, loadAdminTheme, applyAdminTheme, toggleAdminUiMode } from '../components/admin/SettingsTab'
+import { ProductUpdatesTab } from '../components/admin/ProductUpdatesTab'
 import { AdminSurveyBootstrapSkeleton } from '../components/admin/AdminSkeletons'
 import { getSurveys, getSurveyById } from '../lib/supabase'
 import type { Survey } from '../lib/supabase'
+import { isCanvasSurvey } from '../lib/surveyCanvas'
+import { questionsLiveEditHref } from '../lib/liveEditLinks'
 import { markAdminAuthenticated, isAdminAuthenticated } from '../lib/adminSession'
 import '../styles/admin.css'
 
-type Tab = 'responses' | 'analytics' | 'tokens' | 'questions' | 'design' | 'settings'
+type Tab = 'responses' | 'analytics' | 'tokens' | 'questions' | 'design' | 'builder' | 'updates' | 'settings'
 
-const ADMIN_TAB_KEYS: Tab[] = ['responses', 'analytics', 'tokens', 'questions', 'design']
+const ADMIN_TAB_KEYS: Tab[] = ['responses', 'analytics', 'tokens', 'questions', 'design', 'builder']
 
 export default function AdminPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -33,6 +37,7 @@ export default function AdminPage() {
   const [surveysListOpen, setSurveysListOpen] = useState(true)
   const [sidebarSurveys, setSidebarSurveys] = useState<Survey[]>([])
   const [resolvingSurveyFromUrl, setResolvingSurveyFromUrl] = useState(false)
+  const [builderOpenDesignOnce, setBuilderOpenDesignOnce] = useState(false)
   const [muiMode, setMuiMode] = useState<'light' | 'dark'>(() =>
     loadAdminTheme().uiMode === 'light' ? 'light' : 'dark',
   )
@@ -40,8 +45,9 @@ export default function AdminPage() {
   const sidebarRef = useRef<HTMLElement>(null)
   const muiTheme = useMemo(() => createAdminMuiTheme(muiMode), [muiMode])
 
-  const handleSurveySelect = useCallback((survey: Survey) => {
+  const handleSurveySelect = useCallback((survey: Survey, options?: { openTab?: Tab }) => {
     setActiveSurvey(survey)
+    if (options?.openTab) setTab(options.openTab)
   }, [])
 
   const handleSurveyUpdate = useCallback((s: Survey) => {
@@ -84,7 +90,7 @@ export default function AdminPage() {
       return
     }
     const rawTab = searchParams.get('tab')
-    const nextTab: Tab =
+    let nextTab: Tab =
       rawTab && ADMIN_TAB_KEYS.includes(rawTab as Tab) ? (rawTab as Tab) : 'questions'
     let cancelled = false
     startResolving()
@@ -100,8 +106,15 @@ export default function AdminPage() {
           }, { replace: true })
           return
         }
+        let openBuilderDesign = false
+        if (nextTab === 'design' && isCanvasSurvey(s.config)) {
+          nextTab = 'builder'
+          openBuilderDesign = true
+        }
+        if (nextTab === 'builder' && !isCanvasSurvey(s.config)) nextTab = 'questions'
         setActiveSurvey(s)
         setTab(nextTab)
+        if (openBuilderDesign) setBuilderOpenDesignOnce(true)
         setSearchParams(prev => {
           const p = new URLSearchParams(prev)
           p.delete('survey')
@@ -158,6 +171,16 @@ export default function AdminPage() {
       el.removeEventListener('transitionend', onTransitionEnd as EventListener)
     }
   }, [reduceMotion])
+
+  if (activeSurvey) {
+    const canvas = isCanvasSurvey(activeSurvey.config)
+    if (tab === 'design' && canvas) {
+      setTab('builder')
+      setBuilderOpenDesignOnce(true)
+    } else if (tab === 'builder' && !canvas) {
+      setTab('questions')
+    }
+  }
 
   if (!authed) return (
     <ThemeProvider theme={muiTheme}>
@@ -218,7 +241,7 @@ export default function AdminPage() {
                   </button>
                 )}
                 <button
-                  className={`adm-nav-item adm-nav-group-trigger ${!activeSurvey && tab !== 'settings' ? 'adm-nav-item--active' : ''}`}
+                  className={`adm-nav-item adm-nav-group-trigger ${!activeSurvey && tab !== 'settings' && tab !== 'updates' ? 'adm-nav-item--active' : ''}`}
                   onClick={() => { setActiveSurvey(null); setTab('responses') }}
                   title="Все опросники"
                 >
@@ -292,21 +315,51 @@ export default function AdminPage() {
                     <EditIcon />
                     <span className="adm-nav-label">Вопросы</span>
                   </button>
-                  <button
-                    className={`adm-nav-item ${tab === 'design' ? 'adm-nav-item--active' : ''}`}
-                    onClick={() => setTab('design')}
-                    title="Дизайн"
-                  >
-                    <BrushIcon />
-                    <span className="adm-nav-label">Дизайн</span>
-                  </button>
+                  {isCanvasSurvey(activeSurvey.config) && (
+                    <button
+                      className={`adm-nav-item ${tab === 'builder' ? 'adm-nav-item--active' : ''}`}
+                      onClick={() => setTab('builder')}
+                      title="Конструктор страниц"
+                    >
+                      <BuilderIcon />
+                      <span className="adm-nav-label">Конструктор</span>
+                    </button>
+                  )}
+                  {!isCanvasSurvey(activeSurvey.config) && (
+                    <button
+                      className={`adm-nav-item ${tab === 'design' ? 'adm-nav-item--active' : ''}`}
+                      onClick={() => setTab('design')}
+                      title="Дизайн"
+                    >
+                      <BrushIcon />
+                      <span className="adm-nav-label">Дизайн</span>
+                    </button>
+                  )}
                 </>
               )}
             </div>
           </nav>
 
           <div className="adm-sidebar-bottom">
+            <Link
+              to="/"
+              className="adm-nav-item"
+              title="Открыть главную страницу сайта"
+            >
+              <HomeLandingIcon />
+              <span className="adm-nav-label">На лендинг</span>
+            </Link>
             <button
+              type="button"
+              className={`adm-nav-item ${tab === 'updates' ? 'adm-nav-item--active' : ''}`}
+              onClick={() => { setActiveSurvey(null); setTab('updates') }}
+              title="Обновления продукта"
+            >
+              <MegaphoneIcon />
+              <span className="adm-nav-label">Обновления</span>
+            </button>
+            <button
+              type="button"
               className={`adm-nav-item ${tab === 'settings' ? 'adm-nav-item--active' : ''}`}
               onClick={() => { setActiveSurvey(null); setTab('settings') }}
               title="Настройки"
@@ -346,10 +399,10 @@ export default function AdminPage() {
             {activeSurvey && (
               <a
                 className="adm-survey-link"
-                href={activeSurvey.slug === 'crm' ? `/crm?edit=1` : `/s/${activeSurvey.slug}?edit=1`}
+                href={questionsLiveEditHref(activeSurvey.slug)}
                 target="_blank"
                 rel="noopener"
-                title="Правка на живой странице (?edit=1). На карточках — «Изменить вопрос». Служебная ссылка, не для респондентов."
+                title="Правка на живой странице (?edit=1): только тексты вопросов. Полный canvas — только по кнопке из раздела «Конструктор». Служебная ссылка."
               >
                 <ExternalIcon />
                 <span className="adm-nav-label">Правка на сайте</span>
@@ -380,6 +433,16 @@ export default function AdminPage() {
               >
                 <SettingsTab />
               </motion.div>
+            ) : tab === 'updates' ? (
+              <motion.div
+                key="updates"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={tabMotionTransition}
+              >
+                <ProductUpdatesTab />
+              </motion.div>
             ) : resolvingSurveyFromUrl ? (
               <motion.div
                 key="survey-url-resolve"
@@ -408,10 +471,18 @@ export default function AdminPage() {
                 exit={{ opacity: 0, y: -8 }}
                 transition={tabMotionTransition}
               >
-                {tab === 'responses'  ? <ResponsesTab  surveyId={activeSurvey.id} survey={activeSurvey} /> :
+                               {tab === 'responses'  ? <ResponsesTab  surveyId={activeSurvey.id} survey={activeSurvey} /> :
                  tab === 'analytics' ? <AnalyticsTab surveyId={activeSurvey.id} survey={activeSurvey} /> :
                  tab === 'tokens'    ? <TokensTab     surveyId={activeSurvey.id} surveySlug={activeSurvey.slug} /> :
                  tab === 'design'    ? <DesignTab     surveyId={activeSurvey.id} onSurveyUpdate={handleSurveyUpdate} /> :
+                 tab === 'builder'   ? (
+                   <CanvasBuilderTab
+                     surveyId={activeSurvey.id}
+                     onSurveyUpdate={handleSurveyUpdate}
+                     openDesignPanelOnMount={builderOpenDesignOnce}
+                     onConsumedDesignPanelMount={() => setBuilderOpenDesignOnce(false)}
+                   />
+                 ) :
                  <QuestionsTab surveyId={activeSurvey.id} surveySlug={activeSurvey.slug} onSurveyUpdate={handleSurveyUpdate} />}
               </motion.div>
             )}
@@ -453,6 +524,23 @@ function SurveyListRowIcon() {
   )
 }
 
+function HomeLandingIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1V9.5z" />
+    </svg>
+  )
+}
+
+function MegaphoneIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 11v4a2 2 0 002 2h2l6 3V6L7 9H5a2 2 0 00-2 2z" />
+      <path d="M16 9.5a4 4 0 010 5" />
+    </svg>
+  )
+}
+
 function GridIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -485,6 +573,15 @@ function EditIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
       <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+  )
+}
+function BuilderIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="3" width="18" height="7" rx="2" />
+      <rect x="3" y="14" width="18" height="7" rx="2" />
+      <path d="M8 6.5h4M8 17.5h6" />
     </svg>
   )
 }

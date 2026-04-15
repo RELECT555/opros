@@ -147,6 +147,30 @@ export function QuestionsTabSkeleton() {
   )
 }
 
+export function CanvasBuilderTabSkeleton() {
+  return (
+    <div className="adm-tab-content canvas-builder canvas-builder--skeleton" aria-busy="true" aria-label="Загрузка конструктора">
+      <div className="qed-header">
+        <div className="qed-header-row">
+          <div className="qed-header-left">
+            <div className="adm-skeleton adm-skeleton--icon-rounded" />
+            <div className="adm-skel-text-stack">
+              <div className="adm-skeleton adm-skeleton--line-title" />
+              <div className="adm-skeleton adm-skeleton--line-sub" />
+            </div>
+          </div>
+          <div className="adm-skeleton adm-skeleton--btn-wide" />
+        </div>
+      </div>
+      <div className="canvas-builder-layout">
+        <div className="adm-skeleton" style={{ width: 200, minHeight: 280, borderRadius: 12 }} />
+        <div className="adm-skeleton" style={{ flex: 1, minHeight: 320, borderRadius: 12 }} />
+        <div className="adm-skeleton" style={{ width: 180, minHeight: 200, borderRadius: 12 }} />
+      </div>
+    </div>
+  )
+}
+
 export function DesignTabSkeleton() {
   return (
     <div className="dsg-root" aria-busy="true" aria-label="Загрузка настроек дизайна">

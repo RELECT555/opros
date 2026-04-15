@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
 import { getSurveys, createSurvey, updateSurveyConfig } from '../../lib/supabase'
 import type { Survey, SurveyConfigData } from '../../lib/supabase'
+import { createDefaultCanvasSurveyConfig } from '../../lib/surveyCanvas'
 import { SurveysListSkeleton } from './AdminSkeletons'
 import { SURVEY_STICKER_PRESETS, SURVEY_STICKER_MAX_LEN, getSurveyStickerIcon } from '../../lib/surveyStickers'
 
 interface Props {
-  onSelect: (survey: Survey) => void
+  onSelect: (survey: Survey, options?: { openTab?: 'builder' }) => void
 }
 
 function formatDate(iso: string) {
@@ -29,6 +30,7 @@ export function SurveysListTab({ onSelect }: Props) {
   const [newSlug, setNewSlug] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [slugManual, setSlugManual] = useState(false)
+  const [createMode, setCreateMode] = useState<'classic' | 'canvas'>('classic')
   const [stickerPickerFor, setStickerPickerFor] = useState<number | null>(null)
   const [stickerSavingFor, setStickerSavingFor] = useState<number | null>(null)
   const stickerPickerRef = useRef<HTMLDivElement | null>(null)
@@ -77,11 +79,13 @@ export function SurveysListTab({ onSelect }: Props) {
     if (!newTitle.trim() || !newSlug.trim()) return
     setCreating(true)
     try {
+      const config: SurveyConfigData =
+        createMode === 'canvas' ? createDefaultCanvasSurveyConfig() : EMPTY_CONFIG
       const s = await createSurvey({
         slug: newSlug.trim(),
         title: newTitle.trim(),
         description: newDesc.trim() || undefined,
-        config: EMPTY_CONFIG,
+        config,
       })
       setSurveys(prev => [...prev, s])
       setShowForm(false)
@@ -89,7 +93,8 @@ export function SurveysListTab({ onSelect }: Props) {
       setNewSlug('')
       setNewDesc('')
       setSlugManual(false)
-      onSelect(s)
+      setCreateMode('classic')
+      onSelect(s, s.config.editor_mode === 'canvas' ? { openTab: 'builder' } : undefined)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Ошибка создания')
     } finally {
@@ -211,6 +216,27 @@ export function SurveysListTab({ onSelect }: Props) {
                   onChange={e => setNewDesc(e.target.value)}
                 />
               </div>
+              <div className="surveys-create-field">
+                <span className="surveys-create-label">Как создать</span>
+                <div className="surveys-create-mode-grid">
+                  <button
+                    type="button"
+                    className={`surveys-create-mode-card ${createMode === 'classic' ? 'surveys-create-mode-card--on' : ''}`}
+                    onClick={() => setCreateMode('classic')}
+                  >
+                    <span className="surveys-create-mode-title">Классика</span>
+                    <span className="surveys-create-mode-desc">Пустой опрос и список вопросов во вкладке «Вопросы»</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`surveys-create-mode-card ${createMode === 'canvas' ? 'surveys-create-mode-card--on' : ''}`}
+                    onClick={() => setCreateMode('canvas')}
+                  >
+                    <span className="surveys-create-mode-title">С нуля</span>
+                    <span className="surveys-create-mode-desc">Страницы, блоки текста и ширина карточек в конструкторе</span>
+                  </button>
+                </div>
+              </div>
             </div>
             <div className="surveys-create-footer">
               <p className="surveys-create-footnote">
@@ -218,7 +244,9 @@ export function SurveysListTab({ onSelect }: Props) {
                   <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"/>
                   <path d="M6 5.5v3M6 4h.01" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
                 </svg>
-                После создания добавьте вопросы во вкладке «Вопросы»
+                {createMode === 'canvas'
+                  ? 'Откроется вкладка «Конструктор» — добавьте блоки и вопросы'
+                  : 'После создания добавьте вопросы во вкладке «Вопросы»'}
               </p>
               <button
                 className="surveys-create-btn"

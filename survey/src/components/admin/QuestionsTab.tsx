@@ -4,6 +4,8 @@ import { motion, AnimatePresence, easeOut, useReducedMotion } from 'framer-motio
 import { getSurveyById, updateSurveyConfig } from '../../lib/supabase'
 import type { Survey, SurveyQuestion, SurveyConfigData, QuestionMedia, QuestionMediaKind } from '../../lib/supabase'
 import { questionMediaHasContent } from '../../lib/questionMedia'
+import { isCanvasSurvey } from '../../lib/surveyCanvas'
+import { questionsLiveEditHref } from '../../lib/liveEditLinks'
 import { QuestionsTabSkeleton } from './AdminSkeletons'
 
 interface ConfirmState {
@@ -240,10 +242,10 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
           <div className="qed-header-actions qed-header-actions--toolbar">
             <a
               className="qed-open-live"
-              href={surveySlug === 'crm' ? '/crm?edit=1' : `/s/${surveySlug}?edit=1`}
+              href={questionsLiveEditHref(surveySlug)}
               target="_blank"
               rel="noopener noreferrer"
-              title="Откроется опрос в новой вкладке со служебным параметром ?edit=1. На карточках вопросов доступно «Изменить вопрос». Ссылку нельзя отправлять респондентам; при первом входе покажем предупреждение."
+              title="Живая страница: только правка текстов вопросов (?edit=1). Полный canvas — только по кнопке из «Конструктора». Не для респондентов."
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
@@ -263,10 +265,19 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
         <div className="qed-live-hint" role="note">
           <span className="qed-live-hint__badge">Служебно</span>
           <p className="qed-live-hint__text">
-            Открываете живую страницу опроса: правки — на карточках вопросов. Для клиентов используйте обычную ссылку{' '}
-            <strong className="qed-live-hint__strong">без</strong>{' '}
-            <code className="qed-live-hint__code">?edit=1</code>
-            <span className="qed-live-hint__muted"> — её можно скопировать в разделе токенов или с адресной строки после снятия режима правки.</span>
+            {isCanvasSurvey(config) ? (
+              <>
+                С этой вкладки на сайт открывается только правка текстов вопросов. Полотно, блоки и тема — в разделе «Конструктор»
+                (кнопка полной правки на сайте там одна; адрес вручную не собирать).
+              </>
+            ) : (
+              <>
+                Открываете живую страницу опроса: правки — на карточках вопросов. Для клиентов используйте обычную ссылку{' '}
+                <strong className="qed-live-hint__strong">без</strong>{' '}
+                <code className="qed-live-hint__code">?edit=1</code>
+                <span className="qed-live-hint__muted"> — её можно скопировать в разделе токенов или с адресной строки после снятия режима правки.</span>
+              </>
+            )}
           </p>
         </div>
       </div>

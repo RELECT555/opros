@@ -76,6 +76,64 @@ export type SurveyLegacyAnalytics = {
   current_value_labels?: Record<string, string>
 }
 
+/** Режим редактирования: классический список вопросов или конструктор страниц. */
+export type SurveyEditorMode = 'classic' | 'canvas'
+
+export type SurveyCanvasPageRole = 'welcome' | 'content'
+
+export type SurveyCanvasBlock =
+  | {
+      id: string
+      type: 'text'
+      body: string
+      align?: 'left' | 'center' | 'right'
+      /** Минимальная высота блока текста на экране (px), для визуального «растягивания». */
+      minHeightPx?: number
+      /** Свободное позиционирование на welcome-полотне (в процентах по X и px по Y). */
+      xPct?: number
+      yPx?: number
+      /** Ширина блока на welcome-полотне в процентах. */
+      widthPct?: number
+      /** Размер шрифта текста, px (для живой настройки). */
+      fontSizePx?: number
+    }
+  | {
+      id: string
+      type: 'spacer'
+      height: number
+      xPct?: number
+      yPx?: number
+      widthPct?: number
+    }
+  | {
+      id: string
+      type: 'divider'
+      xPct?: number
+      yPx?: number
+      widthPct?: number
+    }
+  | {
+      id: string
+      type: 'cta'
+      label?: string
+      xPct?: number
+      yPx?: number
+      widthPct?: number
+    }
+  | { id: string; type: 'question'; questionId: string }
+
+export interface SurveyCanvasPage {
+  id: string
+  role: SurveyCanvasPageRole
+  title: string
+  layout?: { maxWidth?: 'sm' | 'md' | 'lg' | 'full' }
+  blocks: SurveyCanvasBlock[]
+}
+
+export interface SurveyCanvas {
+  pages: SurveyCanvasPage[]
+}
+
 export interface SurveyConfigData {
   welcome_title?: string
   welcome_sub?: string
@@ -85,6 +143,9 @@ export interface SurveyConfigData {
   sticker?: string
   /** Заголовки блоков для legacy-колонок и подписи значений current_crm */
   legacy_analytics?: SurveyLegacyAnalytics
+  editor_mode?: SurveyEditorMode
+  /** Схема страниц и блоков для режима canvas. */
+  canvas?: SurveyCanvas
 }
 
 export interface Survey {

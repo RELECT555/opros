@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { motion, AnimatePresence, easeOut } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import Pagination from '@mui/material/Pagination'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
-import { List, type RowComponentProps } from 'react-window'
 import {
   getResponsesPaged, getResponses, getTokens,
   updateResponseStatus, updateManagerNote, PAGE_SIZE,
@@ -36,9 +35,11 @@ function StatusBadge({ status, size = 'sm' }: { status: ResponseStatus; size?: '
   )
 }
 const STATUS_ORDER: ResponseStatus[] = ['new', 'called', 'in_progress', 'closed']
-const RESPONSES_VIRTUAL_THRESHOLD = 12
-const RESPONSE_ROW_HEIGHT = 92
-const RESPONSE_VIRTUAL_MAX_HEIGHT = 560
+
+/** Только высота: без opacity, чтобы не дёргать композитинг соседних карточек. */
+const responseExpandTransition = {
+  height: { type: 'spring' as const, bounce: 0, stiffness: 240, damping: 38, mass: 0.9 },
+}
 
 function formatDate(iso: string) {
   const d = new Date(iso)
@@ -90,14 +91,6 @@ interface Props {
   survey: Survey
 }
 
-type VirtualResponseRowData = {
-  rows: SurveyRecord[]
-  total: number
-  page: number
-  tokenEmailMap: Map<string, string>
-  onToggle: (id: number) => void
-}
-
 export function ResponsesTab({ surveyId, survey }: Props) {
   const [rows, setRows] = useState<SurveyRecord[]>([])
   const [tokens, setTokens] = useState<TokenRecord[]>([])
@@ -143,18 +136,9 @@ export function ResponsesTab({ surveyId, survey }: Props) {
     () => new Map(tokens.map(t => [t.token, t.email])),
     [tokens],
   )
-  const shouldVirtualizeRows = rows.length > RESPONSES_VIRTUAL_THRESHOLD && expanded === null
-  const virtualHeight = Math.min(RESPONSE_VIRTUAL_MAX_HEIGHT, rows.length * RESPONSE_ROW_HEIGHT)
   const handleToggle = useCallback((id: number) => {
     setExpanded(prev => prev === id ? null : id)
   }, [])
-  const virtualRowData = useMemo<VirtualResponseRowData>(() => ({
-    rows,
-    total,
-    page,
-    tokenEmailMap,
-    onToggle: handleToggle,
-  }), [rows, total, page, tokenEmailMap, handleToggle])
 
   function emailByToken(token?: string) {
     if (!token) return null
@@ -239,25 +223,14 @@ export function ResponsesTab({ surveyId, survey }: Props) {
       )}
 
       <div className="adm-responses-list">
-        {shouldVirtualizeRows ? (
-          <List
-            rowCount={rows.length}
-            rowHeight={RESPONSE_ROW_HEIGHT}
-            rowComponent={VirtualResponseRow}
-            rowProps={virtualRowData}
-            style={{ height: virtualHeight }}
-          />
-        ) : rows.map((row, idx) => {
+        {rows.map((row, idx) => {
           const rowStatus: ResponseStatus = (row.status as ResponseStatus) ?? 'new'
           const tokenEmail = emailByToken(row.token)
           const displayEmail = row.email || tokenEmail
           return (
-            <motion.div
+            <div
               key={row.id}
               className={`adm-card adm-response-card ${expanded === row.id ? 'adm-card--open' : ''}`}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: idx * 0.04, ease: easeOut }}
             >
               <button
                 className="adm-response-header"
@@ -289,14 +262,14 @@ export function ResponsesTab({ surveyId, survey }: Props) {
                 </div>
               </button>
 
-              <AnimatePresence>
+              <AnimatePresence initial={false}>
                 {expanded === row.id && (
                   <motion.div
                     className="adm-response-body"
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.28, ease: easeOut }}
+                    initial={{ height: 0 }}
+                    animate={{ height: 'auto' }}
+                    exit={{ height: 0 }}
+                    transition={responseExpandTransition}
                   >
                     <div className="adm-response-body-inner">
                       {row.token && tokenEmail && row.email && row.email.trim() !== tokenEmail.trim() && (
@@ -390,7 +363,7 @@ export function ResponsesTab({ surveyId, survey }: Props) {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </motion.div>
+            </div>
           )
         })}
       </div>
@@ -415,53 +388,6 @@ function AnswerBlock({ title, value }: { title: string; value: string }) {
     <div className="adm-qa-block">
       <div className="adm-qa-q">{title}</div>
       <div className="adm-qa-a">{value}</div>
-    </div>
-  )
-}
-
-function VirtualResponseRow({
-  index,
-  style,
-  ...data
-}: RowComponentProps<VirtualResponseRowData>) {
-  const row = data.rows[index]
-  const rowStatus: ResponseStatus = (row.status as ResponseStatus) ?? 'new'
-  const tokenEmail = row.token ? data.tokenEmailMap.get(row.token) : null
-  const displayEmail = row.email || tokenEmail
-
-  return (
-    <div style={style}>
-      <div className="adm-card adm-response-card">
-        <button
-          className="adm-response-header"
-          onClick={() => data.onToggle(row.id)}
-        >
-          <div className="adm-response-left">
-            <span className="adm-response-num">#{data.total - data.page * PAGE_SIZE - index}</span>
-            <div className="adm-response-id-block">
-              <p className="adm-response-name">{row.name}</p>
-              <p className="adm-response-meta-line">
-                <span className="adm-response-meta-item">{row.phone}</span>
-                {displayEmail && (
-                  <>
-                    <span className="adm-response-meta-sep" aria-hidden>·</span>
-                    <span className="adm-response-meta-item adm-response-meta-item--mail">{displayEmail}</span>
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
-          <div className="adm-response-right">
-            <StatusBadge status={rowStatus} />
-            <span className="adm-response-date">{formatDate(row.created_at)}</span>
-            <span className="adm-chevron">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </span>
-          </div>
-        </button>
-      </div>
     </div>
   )
 }

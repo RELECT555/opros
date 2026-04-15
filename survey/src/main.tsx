@@ -6,6 +6,7 @@ import './index.css'
 import AdminPage from './pages/AdminPage.tsx'
 import SurveyPage from './pages/SurveyPage.tsx'
 import HomePage from './pages/HomePage.tsx'
+import UpdatesPage from './pages/UpdatesPage.tsx'
 
 function SurveyRoute() {
   const { slug } = useParams<{ slug: string }>()
@@ -22,6 +23,7 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/updates" element={<UpdatesPage />} />
         <Route path="/s/:slug" element={<SurveyRoute />} />
         <Route path="/admin" element={<AdminPage />} />
         {/* Обратная совместимость: старые CRM-ссылки /?t=xxx */}

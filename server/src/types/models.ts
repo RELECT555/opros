@@ -48,6 +48,28 @@ export type SurveyLegacyAnalytics = {
   current_value_labels?: Record<string, string>
 }
 
+export type SurveyEditorMode = 'classic' | 'canvas'
+export type SurveyCanvasPageRole = 'welcome' | 'content'
+export type SurveyCanvasBlock =
+  | {
+      id: string
+      type: 'text'
+      body: string
+      align?: 'left' | 'center' | 'right'
+      minHeightPx?: number
+    }
+  | { id: string; type: 'spacer'; height: number }
+  | { id: string; type: 'divider' }
+  | { id: string; type: 'question'; questionId: string }
+export type SurveyCanvasPage = {
+  id: string
+  role: SurveyCanvasPageRole
+  title: string
+  layout?: { maxWidth?: 'sm' | 'md' | 'lg' | 'full' }
+  blocks: SurveyCanvasBlock[]
+}
+export type SurveyCanvas = { pages: SurveyCanvasPage[] }
+
 export type SurveyConfigData = {
   welcome_title?: string
   welcome_sub?: string
@@ -55,6 +77,8 @@ export type SurveyConfigData = {
   design?: SurveyDesign
   sticker?: string
   legacy_analytics?: SurveyLegacyAnalytics
+  editor_mode?: SurveyEditorMode
+  canvas?: SurveyCanvas
 }
 
 export type Survey = {

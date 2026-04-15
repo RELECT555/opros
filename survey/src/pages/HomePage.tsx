@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { motion, easeOut } from 'framer-motion'
 import { DottedSurface } from '../components/ui/DottedSurface'
 import { AsklyProductModal } from '../components/marketing/AsklyProductModal'
@@ -81,9 +82,14 @@ export default function HomePage() {
           <img src="/favicon.svg" alt="" className="welcome-brand__icon" />
           <span className="welcome-brand__name">Askly</span>
         </motion.button>
-        <a href="/admin" className="lp-btn lp-btn--primary" style={{ padding: '8px 18px', fontSize: '13px' }}>
-          Войти
-        </a>
+        <div className="lp-topbar__actions">
+          <Link to="/updates" className="lp-btn lp-btn--ghost" style={{ padding: '8px 18px', fontSize: '13px' }}>
+            Обновления
+          </Link>
+          <a href="/admin" className="lp-btn lp-btn--primary" style={{ padding: '8px 18px', fontSize: '13px' }}>
+            Войти
+          </a>
+        </div>
       </motion.div>
 
       <div className="lp-wrap">
@@ -185,7 +191,7 @@ export default function HomePage() {
 
         {/* Footer */}
         <footer className="lp-footer">
-          <span>© 2025 Askly</span>
+          <span>© 2026 Askly</span>
         </footer>
 
       </div>

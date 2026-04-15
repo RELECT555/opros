@@ -347,10 +347,11 @@ export function LiveQuestionEditorModal({ open, question, questionIndex, onClose
                           className="lqe-textarea lqe-textarea--options"
                           rows={6}
                           value={optionsText}
-                          onChange={e => setDraft(d => ({
-                            ...d,
-                            options: e.target.value.split('\n').map(s => s.trimEnd()),
-                          }))}
+                          onChange={e =>
+                            setDraft(d => ({
+                              ...d,
+                              options: e.target.value.split('\n'),
+                            }))}
                         />
                       </div>
                       <label className="lqe-check">

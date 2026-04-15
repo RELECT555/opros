@@ -1,11 +1,16 @@
-import { useState, useEffect, memo } from 'react'
+import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import { getSurveyBySlug, saveSurveyResponseGeneric, markTokenOpened, updateSurveyConfig } from '../lib/supabase'
 import { isAdminAuthenticated } from '../lib/adminSession'
-import type { Survey, SurveyDesign, SurveyQuestion } from '../lib/supabase'
+import type { Survey, SurveyDesign, SurveyQuestion, SurveyConfigData } from '../lib/supabase'
 import { mergeSurveyDesign, buildSurveyDesignStylesheet } from '../lib/surveyDesign'
-
+import {
+  getContentPages,
+  isCanvasSurvey,
+  orderedQuestionsFromCanvas,
+  stepWidthClassForQuestionId,
+} from '../lib/surveyCanvas'
 function applySurveyDesign(d?: SurveyDesign) {
   const styleId = 'survey-design-vars'
   let el = document.getElementById(styleId) as HTMLStyleElement | null
@@ -23,6 +28,7 @@ import { AdminLinkWelcomeGate } from '../components/survey/AdminLinkWelcomeGate'
 import { DynamicSurveyForm, emptyFormData } from '../components/survey/DynamicSurveyForm'
 import type { DynamicFormData } from '../components/survey/DynamicSurveyForm'
 import { SuccessScreen } from '../components/survey/SuccessScreen'
+import { isConstructorCanvasUnlock } from '../lib/liveEditLinks'
 import '../styles/survey.css'
 
 const GlobalSparkles = memo(() => (
@@ -56,6 +62,9 @@ export default function SurveyPage({ slug }: Props) {
   const [form, setForm] = useState<DynamicFormData>({ answers: {}, name: '', phone: '', email: '', comment: '' })
   const [token] = useState(() => new URLSearchParams(window.location.search).get('t') ?? undefined)
   const editorFromUrl = searchParams.get('edit') === '1' || searchParams.get('a') === '1'
+  const canvasUnlockCv = searchParams.get('cv')
+  const canvasToolsFromUrl =
+    searchParams.get('canvas') === '1' && isConstructorCanvasUnlock(slug, canvasUnlockCv)
   const showLiveEdit = editorFromUrl && adminOk
   const [showAdminLinkGate, setShowAdminLinkGate] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -97,6 +106,8 @@ export default function SurveyPage({ slug }: Props) {
       const p = new URLSearchParams(prev)
       p.delete('edit')
       p.delete('a')
+      p.delete('canvas')
+      p.delete('cv')
       return p
     }, { replace: true })
   }
@@ -106,7 +117,7 @@ export default function SurveyPage({ slug }: Props) {
       .then(s => {
         if (!s) { setLoadError('Опрос не найден'); return }
         setSurvey(s)
-        setForm(emptyFormData(s.config.questions))
+        setForm(emptyFormData(orderedQuestionsFromCanvas(s.config)))
         if (token) markTokenOpened(token)
         applySurveyDesign(s.config.design)
         // Сохраняем slug в историю посещённых опросов
@@ -120,6 +131,29 @@ export default function SurveyPage({ slug }: Props) {
       .catch(e => setLoadError(e.message ?? 'Ошибка загрузки опроса'))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
+
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestCfgRef = useRef<SurveyConfigData | null>(null)
+
+  const flushSave = useCallback((surveyId: number, cfg: SurveyConfigData) => {
+    latestCfgRef.current = cfg
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      const toSave = latestCfgRef.current
+      if (toSave) void updateSurveyConfig(surveyId, toSave)
+      saveTimerRef.current = null
+    }, 400)
+  }, [])
+
+  async function persistCanvasConfig(fn: (c: SurveyConfigData) => SurveyConfigData) {
+    setSurvey(prev => {
+      if (!prev) return prev
+      const nextCfg = fn(prev.config)
+      setForm(emptyFormData(orderedQuestionsFromCanvas(nextCfg)))
+      flushSave(prev.id, nextCfg)
+      return { ...prev, config: nextCfg }
+    })
+  }
 
   if (loadError) {
     return (
@@ -137,15 +171,13 @@ export default function SurveyPage({ slug }: Props) {
     )
   }
 
-  const questions = survey.config.questions
+  const questions = orderedQuestionsFromCanvas(survey.config)
   const validPhone = /^[\d\s+\-()]{7,}$/.test(form.phone.trim())
 
   function isAnswered(q: typeof questions[number]): boolean {
     if (q.type === 'checkbox') return ((form.answers[q.id] as string[]) ?? []).length > 0
     return !!(form.answers[q.id])
   }
-
-  const totalSections = questions.length + 1
 
   const canSubmit =
     questions.every(q => isAnswered(q)) &&
@@ -182,12 +214,19 @@ export default function SurveyPage({ slug }: Props) {
 
   async function handleLiveQuestionSave(updated: SurveyQuestion, index: number) {
     if (!survey) return
-    const nextQuestions = survey.config.questions.map((qq, i) => (i === index ? updated : qq))
+    const order = orderedQuestionsFromCanvas(survey.config)
+    const target = order[index]
+    if (!target) return
+    const nextQuestions = survey.config.questions.map(qq => (qq.id === target.id ? updated : qq))
     const cfg = { ...survey.config, questions: nextQuestions }
     await updateSurveyConfig(survey.id, cfg)
     setSurvey({ ...survey, config: cfg })
   }
 
+  const welcomePageBlocks = isCanvasSurvey(survey.config)
+    ? (survey.config.canvas!.pages.find(p => p.role === 'welcome')?.blocks ?? [])
+    : null
+  const canvasContentPages = isCanvasSurvey(survey.config) ? getContentPages(survey.config) : undefined
   const welcomeTitle  = survey.config.welcome_title ?? 'Пройдите опрос'
   const welcomeSub    = survey.config.welcome_sub   ?? survey.description ?? ''
   const welcomeBtn    = survey.config.design?.btn_label?.trim() || undefined
@@ -196,6 +235,8 @@ export default function SurveyPage({ slug }: Props) {
   const typeScaleClass  = dm.type_scale !== 'normal' ? ` root--type-${dm.type_scale}` : ''
 
   const showSurveyForm = screen === 'survey' && status !== 'done'
+  const showCanvasLiveTools =
+    showLiveEdit && canvasToolsFromUrl && isCanvasSurvey(survey.config)
 
   return (
     <div className={`root${showSurveyForm ? ' root--survey-form' : screen === 'welcome' ? ' root--welcome' : ''}${typeScaleClass}${showAdminChrome ? ' root--admin-context' : ''}`}>
@@ -203,7 +244,21 @@ export default function SurveyPage({ slug }: Props) {
         <div className="survey-admin-bar survey-admin-bar--live" role="region" aria-label="Режим администратора">
           <div className="survey-admin-bar-inner">
             <p className="survey-admin-bar-text">
-              <strong>Режим правки:</strong> «Изменить вопрос» на карточке. Клиенты видят так же, без панели и без <code className="survey-admin-bar-code">?edit=1</code>.
+              {isCanvasSurvey(survey.config) ? (
+                showCanvasLiveTools ? (
+                  <>
+                    <strong>Конструктор на живой странице:</strong> блоки, приветствие, ширина шагов; тексты вопросов — «Изменить вопрос». Без <code className="survey-admin-bar-code">?edit=1</code> виден только опрос.
+                  </>
+                ) : (
+                  <>
+                    <strong>Правка текстов:</strong> «Изменить вопрос» на карточках. Полотно и блоки — только из админки: раздел «Конструктор» → ссылка «открыть полную правку на сайте» (не копируйте адрес вручную).
+                  </>
+                )
+              ) : (
+                <>
+                  <strong>Режим правки:</strong> «Изменить вопрос» на карточке. Клиенты видят так же, без панели и без <code className="survey-admin-bar-code">?edit=1</code>.
+                </>
+              )}
             </p>
             <button type="button" className="survey-admin-bar-btn survey-admin-bar-btn--ghost" onClick={disableLiveEdit}>
               Снять правку
@@ -231,12 +286,15 @@ export default function SurveyPage({ slug }: Props) {
             onStart={() => setScreen('survey')}
             title={welcomeTitle}
             sub={welcomeSub}
-            questionCount={totalSections}
+            questionCount={questions.length}
             btnLabel={welcomeBtn}
             logoUrl={welcomeLogo}
             badgeText={dm.welcome_badge}
             hintLeft={dm.welcome_hint_1}
             hintRight={dm.welcome_hint_2}
+            welcomeCanvasBlocks={welcomePageBlocks}
+            liveWelcomeEdit={showCanvasLiveTools}
+            onWelcomePatch={showCanvasLiveTools ? persistCanvasConfig : undefined}
           />
         ) : status === 'done' ? (
           <SuccessScreen key="done" onReset={handleReset} />
@@ -255,6 +313,14 @@ export default function SurveyPage({ slug }: Props) {
             token={token}
             liveEdit={showLiveEdit}
             onLiveQuestionSave={showLiveEdit ? handleLiveQuestionSave : undefined}
+            questionWrapClass={
+              isCanvasSurvey(survey.config)
+                ? () => 'sf-canvas-qcard-wrap'
+                : q => stepWidthClassForQuestionId(survey.config, q.id)
+            }
+            canvasContentPages={canvasContentPages}
+            liveCanvasEdit={showCanvasLiveTools}
+            onCanvasPatch={showCanvasLiveTools ? persistCanvasConfig : undefined}
           />
         )}
       </AnimatePresence>
