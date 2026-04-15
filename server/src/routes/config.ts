@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { queryOne } from '../db/client.js'
-import { requireAdminKey } from '../middleware/auth.js'
+import { requireAdminKey, requireGlobalAdmin } from '../middleware/auth.js'
 
 const ID_SCHEMA = { type: 'object', properties: { id: { type: 'string', pattern: '^[0-9]+$' } } } as const
 
@@ -21,7 +21,7 @@ export async function configRoutes(app: FastifyInstance) {
   app.put<{ Params: { id: string }; Body: { config: unknown } }>(
     '/admin/config/:id',
     {
-      preHandler: requireAdminKey,
+      preHandler: requireGlobalAdmin,
       schema: {
         params: ID_SCHEMA,
         body: {
@@ -54,7 +54,7 @@ export async function configRoutes(app: FastifyInstance) {
   app.put<{ Body: { theme: unknown } }>(
     '/admin/theme',
     {
-      preHandler: requireAdminKey,
+      preHandler: requireGlobalAdmin,
       schema: {
         body: {
           type: 'object',

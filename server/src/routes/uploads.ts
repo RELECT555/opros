@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join, extname, basename } from 'node:path'
 import { requireAdminKey } from '../middleware/auth.js'
+import { canAccessSurvey } from '../lib/access.js'
+import { isFullAccess } from '../types/auth.js'
 import { httpLog } from '../logger.js'
 
 const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'])
@@ -54,10 +56,19 @@ export async function uploadsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: 'Файл пустой' })
       }
 
+      const ctx = req.authCtx!
       const surveyIdRaw = req.query.survey_id ?? 'general'
       const surveyId = String(surveyIdRaw).replace(/[^a-zA-Z0-9_-]/g, '')
       if (!surveyId) {
         return reply.code(400).send({ error: 'Некорректный survey_id' })
+      }
+      const numericId = /^\d+$/.test(surveyId) ? Number(surveyId) : NaN
+      if (Number.isFinite(numericId)) {
+        if (!(await canAccessSurvey(ctx, numericId))) {
+          return reply.code(403).send({ error: 'Нет доступа к опросу' })
+        }
+      } else if (!isFullAccess(ctx)) {
+        return reply.code(403).send({ error: 'Нет доступа' })
       }
 
       const dir = join(_uploadsDir(), 'logos', surveyId)

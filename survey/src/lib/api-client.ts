@@ -1,17 +1,6 @@
 /**
- * api-client.ts — HTTP-клиент для собственного бэкенда.
- *
- * Drop-in замена Supabase-функций из supabase.ts.
- * Экспортирует TE ЖЕ имена и сигнатуры — при миграции достаточно
- * сменить import с './supabase' на './api-client'.
- *
- * Для подключения:
- *   1. В survey/.env добавить VITE_API_URL=http://localhost:3001
- *   2. В компонентах сменить импорт:
- *      - import { getSurveys, ... } from '../lib/supabase'
- *      + import { getSurveys, ... } from '../lib/api-client'
- *
- * Типы реэкспортируются из supabase.ts — менять ничего не нужно.
+ * HTTP-клиент для собственного бэкенда (админка и публичные методы).
+ * Bearer: JWT пароля админки или access_token Supabase (OAuth).
  */
 
 import type {
@@ -22,20 +11,28 @@ import type {
   ResponseStatus,
   GenericSurveyResponse,
 } from './supabase'
-import { ADMIN_JWT_STORAGE_KEY } from './adminSession'
+import { supabase } from './supabase'
+import { ADMIN_JWT_STORAGE_KEY, clearAdminAuthenticated, markAdminAuthenticated } from './adminSession'
 
 export type { Survey, SurveyConfigData, SurveyRecord, TokenRecord, ResponseStatus }
 export { PAGE_SIZE } from './supabase'
 
+export type AuthMe =
+  | { auth: 'password_admin' }
+  | { auth: 'oauth'; user: { id: string; email: string; is_global_admin: boolean } }
+
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3001'
 
-function _getToken(): string | null {
-  return localStorage.getItem(ADMIN_JWT_STORAGE_KEY)
-}
-
-function _authHeaders(): Record<string, string> {
-  const token = _getToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
+async function authHeaders(): Promise<Record<string, string>> {
+  try {
+    const admin = localStorage.getItem(ADMIN_JWT_STORAGE_KEY)
+    if (admin) return { Authorization: `Bearer ${admin}` }
+  } catch {
+    /* ignore */
+  }
+  const { data: { session } } = await supabase.auth.getSession()
+  const t = session?.access_token
+  return t ? { Authorization: `Bearer ${t}` } : {}
 }
 
 async function _fetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -43,7 +40,7 @@ async function _fetch<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      ..._authHeaders(),
+      ...(await authHeaders()),
       ...init?.headers,
     },
   })
@@ -60,25 +57,59 @@ async function _fetch<T>(path: string, init?: RequestInit): Promise<T> {
 // ── Auth ────────────────────────────────────────────────────
 
 export async function login(password: string): Promise<string> {
-  const { token } = await _fetch<{ token: string }>('/api/auth/login', {
+  /* Без Bearer: старый токен не должен уходить на /auth/login */
+  const res = await fetch(`${API_URL}/api/auth/login`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
   })
+  const body = await res.json().catch(() => ({ error: res.statusText }))
+  if (!res.ok) {
+    throw new Error(typeof body.error === 'string' ? body.error : `HTTP ${res.status}`)
+  }
+  const token = (body as { token?: string }).token
+  if (!token) throw new Error('Сервер не вернул токен')
   localStorage.setItem(ADMIN_JWT_STORAGE_KEY, token)
+  markAdminAuthenticated()
   return token
 }
 
-export async function checkAuth(): Promise<boolean> {
+export async function fetchMe(): Promise<AuthMe | null> {
   try {
-    await _fetch('/api/auth/me')
-    return true
+    return await _fetch<AuthMe>('/api/auth/me')
   } catch {
-    return false
+    return null
   }
 }
 
-export function logout(): void {
-  localStorage.removeItem(ADMIN_JWT_STORAGE_KEY)
+/** Как fetchMe, но с текстом ошибки — после login для диагностики. */
+export async function fetchMeOrThrow(): Promise<AuthMe> {
+  const res = await fetch(`${API_URL}/api/auth/me`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(await authHeaders()),
+    },
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(typeof body.error === 'string' ? body.error : `HTTP ${res.status}`)
+  }
+  return res.json() as Promise<AuthMe>
+}
+
+export async function checkAuth(): Promise<boolean> {
+  const me = await fetchMe()
+  return me !== null
+}
+
+export async function logout(): Promise<void> {
+  try {
+    localStorage.removeItem(ADMIN_JWT_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+  clearAdminAuthenticated()
+  await supabase.auth.signOut()
 }
 
 // ── Surveys CRUD ────────────────────────────────────────────
@@ -124,9 +155,9 @@ export async function updateSurveyConfig(id: number, config: SurveyConfigData): 
 
 export async function updateSurveyMeta(
   id: number,
-  meta: { title?: string; description?: string; is_active?: boolean },
-): Promise<void> {
-  await _fetch(`/api/admin/surveys/${id}`, {
+  meta: { slug?: string; title?: string; description?: string; is_active?: boolean },
+): Promise<Survey> {
+  return _fetch(`/api/admin/surveys/${id}`, {
     method: 'PUT',
     body: JSON.stringify(meta),
   })
@@ -134,6 +165,13 @@ export async function updateSurveyMeta(
 
 export async function deleteSurvey(id: number): Promise<void> {
   await _fetch(`/api/admin/surveys/${id}`, { method: 'DELETE' })
+}
+
+export async function grantSurveyAccess(surveyId: number, email: string): Promise<void> {
+  await _fetch(`/api/admin/surveys/${surveyId}/share`, {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
 }
 
 // ── Logo upload ─────────────────────────────────────────────
@@ -151,7 +189,7 @@ export async function uploadSurveyLogo(surveyId: number, file: File): Promise<st
 
   const res = await fetch(`${API_URL}/api/admin/uploads/logo?survey_id=${surveyId}`, {
     method: 'POST',
-    headers: _authHeaders(),
+    headers: await authHeaders(),
     body: form,
   })
 

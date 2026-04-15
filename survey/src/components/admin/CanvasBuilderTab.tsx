@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
-import { getSurveyById, updateSurveyConfig } from '../../lib/supabase'
+import { getSurveyById, updateSurveyConfig } from '../../lib/api-client'
 import type {
   Survey,
   SurveyConfigData,

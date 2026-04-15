@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify'
 import { randomBytes } from 'node:crypto'
 import { db, query, queryOne } from '../db/client.js'
 import { requireAdminKey } from '../middleware/auth.js'
+import { accessibleSurveyIds, canAccessSurvey } from '../lib/access.js'
+import { isFullAccess } from '../types/auth.js'
 
 function generateToken(): string {
   return randomBytes(16).toString('hex')
@@ -28,12 +30,31 @@ export async function tokensRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
+      const ctx = req.authCtx!
       const surveyId = req.query.survey_id ? Number(req.query.survey_id) : null
+      if (surveyId !== null && !(await canAccessSurvey(ctx, surveyId))) {
+        return reply.code(403).send({ error: 'Нет доступа к опросу' })
+      }
+
+      const allowed = await accessibleSurveyIds(ctx)
+      const params: unknown[] = []
+      const parts: string[] = []
+
+      if (!isFullAccess(ctx)) {
+        if (allowed.length === 0) return reply.send([])
+        params.push(allowed)
+        parts.push(`survey_id = any($${params.length}::bigint[])`)
+      }
+
+      if (surveyId !== null) {
+        params.push(surveyId)
+        parts.push(`survey_id = $${params.length}`)
+      }
+
+      const where = parts.length ? `where ${parts.join(' and ')}` : ''
       const rows = await query(
-        `select * from survey_tokens
-         ${surveyId !== null ? 'where survey_id = $1' : ''}
-         order by created_at desc`,
-        surveyId !== null ? [surveyId] : [],
+        `select * from survey_tokens ${where} order by created_at desc`,
+        params,
       )
       reply.send(rows)
     },
@@ -56,12 +77,21 @@ export async function tokensRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
+      const ctx = req.authCtx!
       const { emails, survey_id } = req.body
+
+      const sid = survey_id ?? null
+      if (sid !== null && !(await canAccessSurvey(ctx, sid))) {
+        return reply.code(403).send({ error: 'Нет доступа к опросу' })
+      }
+      if (sid === null && !isFullAccess(ctx)) {
+        return reply.code(403).send({ error: 'Укажите опрос для приглашений' })
+      }
 
       const records = emails.map(email => ({
         token: generateToken(),
         email: email.trim().toLowerCase(),
-        survey_id: survey_id ?? null,
+        survey_id: sid,
       }))
 
       const placeholders = records
@@ -121,6 +151,18 @@ export async function tokensRoutes(app: FastifyInstance) {
       schema: { params: TOKEN_PARAMS },
     },
     async (req, reply) => {
+      const ctx = req.authCtx!
+      const row = await queryOne<{ survey_id: number | null }>(
+        `select survey_id from survey_tokens where token = $1`,
+        [req.params.token],
+      )
+      if (!row) return reply.code(404).send({ error: 'Токен не найден' })
+      if (row.survey_id !== null && !(await canAccessSurvey(ctx, row.survey_id))) {
+        return reply.code(403).send({ error: 'Нет доступа' })
+      }
+      if (row.survey_id === null && !isFullAccess(ctx)) {
+        return reply.code(403).send({ error: 'Нет доступа' })
+      }
       await query('delete from survey_tokens where token = $1', [req.params.token])
       reply.code(204).send()
     },
@@ -133,6 +175,7 @@ export async function tokensRoutes(app: FastifyInstance) {
       schema: { params: TOKEN_PARAMS },
     },
     async (req, reply) => {
+      const ctx = req.authCtx!
       const client = await db.connect()
       try {
         await client.query('begin')
@@ -144,6 +187,14 @@ export async function tokensRoutes(app: FastifyInstance) {
         if (!old) {
           await client.query('rollback')
           return reply.code(404).send({ error: 'Токен не найден' })
+        }
+        if (old.survey_id !== null && !(await canAccessSurvey(ctx, old.survey_id))) {
+          await client.query('rollback')
+          return reply.code(403).send({ error: 'Нет доступа' })
+        }
+        if (old.survey_id === null && !isFullAccess(ctx)) {
+          await client.query('rollback')
+          return reply.code(403).send({ error: 'Нет доступа' })
         }
 
         await client.query('delete from survey_tokens where token = $1', [req.params.token])

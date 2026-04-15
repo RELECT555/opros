@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion, easeOut } from 'framer-motion'
-import { getResponses, getTokens } from '../../lib/supabase'
+import { getResponses, getTokens } from '../../lib/api-client'
 import type {
   SurveyRecord,
   TokenRecord,

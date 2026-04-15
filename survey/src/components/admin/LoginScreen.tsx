@@ -1,24 +1,73 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { supabase } from '../../lib/supabase'
+import { login, fetchMeOrThrow } from '../../lib/api-client'
 
-const ADMIN_PASSWORD = 'admin2026'
+const ADMIN_ORIGIN = `${window.location.origin}/admin`
 
-export function LoginScreen({ onAuth }: { onAuth: () => void }) {
+export function LoginScreen({
+  onAuth,
+  externalError,
+}: {
+  onAuth: () => void | Promise<void>
+  externalError?: string | null
+}) {
   const [pw, setPw] = useState('')
   const [wrong, setWrong] = useState(false)
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [oauthLoading, setOauthLoading] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
 
   async function submit() {
     if (loading || !pw) return
     setLoading(true)
-    await new Promise(r => setTimeout(r, 500))
-    setLoading(false)
-    if (pw === ADMIN_PASSWORD) {
-      onAuth()
-    } else {
-      setWrong(true)
-      setTimeout(() => setWrong(false), 2000)
+    setErr(null)
+    try {
+      await login(pw)
+      await fetchMeOrThrow()
+      await onAuth()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Ошибка входа'
+      if (msg.includes('Неверный') || msg.includes('401')) {
+        setWrong(true)
+        setTimeout(() => setWrong(false), 2000)
+      } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+        setErr(
+          `Не удалось связаться с API (${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}). Запущен ли server? В survey/.env задайте VITE_API_URL. Если CORS: в server/.env для dev укажите FRONTEND_URL=http://localhost:5173 (порт как у Vite).`,
+        )
+      } else {
+        setErr(msg)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function oauth(provider: 'google' | 'azure') {
+    if (oauthLoading) return
+    setOauthLoading(provider)
+    setErr(null)
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: ADMIN_ORIGIN,
+          scopes: provider === 'azure' ? 'email' : undefined,
+        },
+      })
+      if (error) {
+        const m = error.message ?? ''
+        if (m.includes('not enabled') || m.includes('Unsupported provider')) {
+          setErr(
+            'Провайдер выключен в Supabase: Dashboard → Authentication → Providers → включите Google и/или Azure (Microsoft), сохраните.',
+          )
+        } else {
+          setErr(m)
+        }
+      }
+    } finally {
+      setOauthLoading(null)
     }
   }
 
@@ -45,15 +94,39 @@ export function LoginScreen({ onAuth }: { onAuth: () => void }) {
 
         <h1 className="ls-title">Панель<br />администратора</h1>
 
+        <div className="ls-oauth-row">
+          <button
+            type="button"
+            className="ls-oauth-btn"
+            disabled={!!oauthLoading}
+            onClick={() => oauth('google')}
+          >
+            {oauthLoading === 'google' ? <span className="ls-spinner" /> : (
+              <>Google</>
+            )}
+          </button>
+          <button
+            type="button"
+            className="ls-oauth-btn"
+            disabled={!!oauthLoading}
+            onClick={() => oauth('azure')}
+          >
+            {oauthLoading === 'azure' ? <span className="ls-spinner" /> : (
+              <>Microsoft</>
+            )}
+          </button>
+        </div>
+
+        <p className="ls-divider"><span>или пароль администратора</span></p>
+
         <div className="ls-field">
           <div className={`ls-input-wrap${wrong ? ' ls-input-wrap--err' : ''}`}>
             <input
               type={showPw ? 'text' : 'password'}
-              placeholder="Введите пароль"
+              placeholder="Пароль"
               value={pw}
               onChange={e => setPw(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && submit()}
-              autoFocus
               className="ls-input"
             />
             <button
@@ -97,6 +170,8 @@ export function LoginScreen({ onAuth }: { onAuth: () => void }) {
           </AnimatePresence>
         </div>
 
+        {(err || externalError) && <p className="ls-err ls-err--static">{err || externalError}</p>}
+
         <motion.button
           className="ls-btn"
           onClick={submit}
@@ -104,7 +179,7 @@ export function LoginScreen({ onAuth }: { onAuth: () => void }) {
           whileHover={!loading && pw ? { scale: 1.02 } : {}}
           whileTap={!loading && pw ? { scale: 0.97 } : {}}
         >
-          {loading ? <span className="ls-spinner" /> : 'Войти'}
+          {loading ? <span className="ls-spinner" /> : 'Войти по паролю'}
         </motion.button>
       </motion.div>
     </div>

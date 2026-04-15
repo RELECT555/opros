@@ -8,6 +8,8 @@ export interface DynamicFormData {
   phone: string
   email: string
   comment: string
+  /** Состояние галочек согласия по id из contacts_block.consents */
+  consentChecks: Record<string, boolean>
 }
 
 export type DynamicFormStatus = 'idle' | 'loading' | 'done' | 'error'
@@ -20,5 +22,5 @@ export function emptyDynamicFormData(questions: SurveyQuestion[]): DynamicFormDa
     answers[q.id] = q.type === 'checkbox' ? [] : ''
     if (q.hasOther) answers[q.id + '__other'] = ''
   }
-  return { answers, name: '', phone: '', email: '', comment: '' }
+  return { answers, name: '', phone: '', email: '', comment: '', consentChecks: {} }
 }

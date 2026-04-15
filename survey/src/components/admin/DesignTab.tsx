@@ -4,7 +4,7 @@ import {
   getSurveyById,
   updateSurveyConfig,
   uploadSurveyLogo,
-} from '../../lib/supabase'
+} from '../../lib/api-client'
 import type { Survey, SurveyConfigData, SurveyDesign } from '../../lib/supabase'
 import {
   SURVEY_STICKER_PRESETS,

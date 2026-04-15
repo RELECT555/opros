@@ -16,12 +16,19 @@ import { SurveysListTab } from '../components/admin/SurveysListTab'
 import { CanvasBuilderTab } from '../components/admin/CanvasBuilderTab'
 import { SettingsTab, loadAdminTheme, applyAdminTheme, toggleAdminUiMode } from '../components/admin/SettingsTab'
 import { ProductUpdatesTab } from '../components/admin/ProductUpdatesTab'
+import { AdminWelcomeModal } from '../components/admin/AdminWelcomeModal'
 import { AdminSurveyBootstrapSkeleton } from '../components/admin/AdminSkeletons'
-import { getSurveys, getSurveyById } from '../lib/supabase'
-import type { Survey } from '../lib/supabase'
+import { getSurveys, getSurveyById, fetchMe, logout } from '../lib/api-client'
+import type { Survey, AuthMe } from '../lib/api-client'
+import { supabase } from '../lib/supabase'
 import { isCanvasSurvey } from '../lib/surveyCanvas'
 import { questionsLiveEditHref } from '../lib/liveEditLinks'
-import { markAdminAuthenticated, isAdminAuthenticated } from '../lib/adminSession'
+import { markAdminAuthenticated, clearAdminAuthenticated } from '../lib/adminSession'
+import {
+  ADMIN_WELCOME_AUTOSHOW_EVENT,
+  ADMIN_WELCOME_AUTOSHOW_KEY,
+  getAdminWelcomeAutoshow,
+} from '../lib/adminWelcomePref'
 import '../styles/admin.css'
 
 type Tab = 'responses' | 'analytics' | 'tokens' | 'questions' | 'design' | 'builder' | 'updates' | 'settings'
@@ -30,7 +37,9 @@ const ADMIN_TAB_KEYS: Tab[] = ['responses', 'analytics', 'tokens', 'questions', 
 
 export default function AdminPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [authed, setAuthed] = useState(() => isAdminAuthenticated())
+  const [authed, setAuthed] = useState(false)
+  const [authMe, setAuthMe] = useState<AuthMe | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
   const [activeSurvey, setActiveSurvey] = useState<Survey | null>(null)
   const [tab, setTab] = useState<Tab>('responses')
   const [collapsed, setCollapsed] = useState(false)
@@ -38,6 +47,8 @@ export default function AdminPage() {
   const [sidebarSurveys, setSidebarSurveys] = useState<Survey[]>([])
   const [resolvingSurveyFromUrl, setResolvingSurveyFromUrl] = useState(false)
   const [builderOpenDesignOnce, setBuilderOpenDesignOnce] = useState(false)
+  const [adminWelcomeOpen, setAdminWelcomeOpen] = useState(false)
+  const [welcomeAutoshow, setWelcomeAutoshow] = useState(() => getAdminWelcomeAutoshow())
   const [muiMode, setMuiMode] = useState<'light' | 'dark'>(() =>
     loadAdminTheme().uiMode === 'light' ? 'light' : 'dark',
   )
@@ -55,10 +66,107 @@ export default function AdminPage() {
     setSidebarSurveys(prev => prev.map(x => (x.id === s.id ? s : x)))
   }, [])
 
+  const canGrantSurveyAccess =
+    authMe?.auth === 'password_admin' ||
+    (authMe?.auth === 'oauth' && authMe.user.is_global_admin)
+
+  useEffect(() => {
+    let cancelled = false
+    const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3001'
+    ;(async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (cancelled) return
+      if (session?.access_token) {
+        const me = await fetchMe()
+        if (cancelled) return
+        if (me) {
+          markAdminAuthenticated()
+          setAuthMe(me)
+          setAuthed(true)
+        } else {
+          setAuthError(
+            `OAuth-сессия есть (Supabase), но API-сервер (${API_URL}) не отвечает или вернул ошибку. ` +
+            `Убедитесь: 1) server запущен (npm run dev в папке server); ` +
+            `2) в server/.env заданы SUPABASE_JWT_SECRET (из Supabase Dashboard → Settings → API → JWT Secret) ` +
+            `и ADMIN_PASSWORD; ` +
+            `3) VITE_API_URL в survey/.env совпадает с адресом server.`,
+          )
+        }
+        return
+      }
+      const me = await fetchMe()
+      if (cancelled) return
+      if (me) {
+        markAdminAuthenticated()
+        setAuthMe(me)
+        setAuthed(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3001'
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.access_token) {
+        setAuthError(null)
+        const me = await fetchMe()
+        if (me) {
+          markAdminAuthenticated()
+          setAuthMe(me)
+          setAuthed(true)
+        } else {
+          setAuthError(
+            `OAuth OK, но API-сервер (${API_URL}) недоступен. ` +
+            `Запустите server (npm run dev) и убедитесь, что в server/.env задан SUPABASE_JWT_SECRET.`,
+          )
+        }
+      }
+      if (event === 'SIGNED_OUT') {
+        clearAdminAuthenticated()
+        setAuthMe(null)
+        setAuthed(false)
+        setSidebarSurveys([])
+        setActiveSurvey(null)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   useEffect(() => {
     if (!authed) return
     getSurveys().then(setSidebarSurveys).catch(() => {})
   }, [authed])
+
+  useEffect(() => {
+    function syncWelcomePref() {
+      setWelcomeAutoshow(getAdminWelcomeAutoshow())
+    }
+    function onStorage(e: StorageEvent) {
+      if (e.key === ADMIN_WELCOME_AUTOSHOW_KEY || e.key === null) syncWelcomePref()
+    }
+    window.addEventListener(ADMIN_WELCOME_AUTOSHOW_EVENT, syncWelcomePref)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener(ADMIN_WELCOME_AUTOSHOW_EVENT, syncWelcomePref)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!authed) {
+      setAdminWelcomeOpen(false)
+      return
+    }
+    if (welcomeAutoshow) setAdminWelcomeOpen(true)
+    else setAdminWelcomeOpen(false)
+  }, [authed, welcomeAutoshow])
+
+  const handleAdminWelcomeClose = useCallback(() => {
+    setAdminWelcomeOpen(false)
+  }, [])
 
   const tabMotionTransition = reduceMotion
     ? { duration: 0 }
@@ -186,8 +294,11 @@ export default function AdminPage() {
     <ThemeProvider theme={muiTheme}>
       <CssBaseline />
       <LoginScreen
-        onAuth={() => {
-          markAdminAuthenticated()
+        externalError={authError}
+        onAuth={async () => {
+          setAuthError(null)
+          const me = await fetchMe()
+          setAuthMe(me)
           setAuthed(true)
         }}
       />
@@ -198,6 +309,7 @@ export default function AdminPage() {
     <ThemeProvider theme={muiTheme}>
     <CssBaseline />
     <div className="adm-root">
+      <AdminWelcomeModal open={adminWelcomeOpen} onClose={handleAdminWelcomeClose} />
       <div className="adm-bg-scene">
         <div className="adm-orb adm-orb--1" />
         <div className="adm-orb adm-orb--2" />
@@ -410,6 +522,23 @@ export default function AdminPage() {
             )}
 
             <button
+              type="button"
+              className="adm-nav-item"
+              onClick={() => {
+                void logout().then(() => {
+                  setAuthed(false)
+                  setAuthMe(null)
+                  setSidebarSurveys([])
+                  setActiveSurvey(null)
+                })
+              }}
+              title="Выйти из аккаунта"
+            >
+              <LogoutIcon />
+              <span className="adm-nav-label">Выйти</span>
+            </button>
+
+            <button
               className="adm-collapse-btn"
               onClick={() => setCollapsed(c => !c)}
               title={collapsed ? 'Развернуть' : 'Свернуть'}
@@ -461,7 +590,7 @@ export default function AdminPage() {
                 exit={{ opacity: 0, y: -8 }}
                 transition={tabMotionTransition}
               >
-                <SurveysListTab onSelect={handleSurveySelect} />
+                <SurveysListTab onSelect={handleSurveySelect} canGrantAccess={canGrantSurveyAccess} />
               </motion.div>
             ) : (
               <motion.div
@@ -618,6 +747,16 @@ function GearIcon() {
     </svg>
   )
 }
+function LogoutIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  )
+}
+
 function CollapseIcon({ collapsed }: { collapsed: boolean }) {
   return (
     <svg

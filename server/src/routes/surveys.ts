@@ -1,8 +1,12 @@
 import type { FastifyInstance } from 'fastify'
 import { query, queryOne } from '../db/client.js'
-import { requireAdminKey } from '../middleware/auth.js'
+import { requireAdminKey, requireGlobalAdmin } from '../middleware/auth.js'
+import { accessibleSurveyIds, canAccessSurvey } from '../lib/access.js'
+import { getProfileByEmail } from '../lib/profile-sync.js'
 import { emitSurveyCreated, emitSurveyUpdated } from '../ws/index.js'
 import type { Survey } from '../types/models.js'
+import type { AuthContext } from '../types/auth.js'
+import { isFullAccess } from '../types/auth.js'
 
 const ID_PARAMS = {
   type: 'object',
@@ -14,11 +18,25 @@ const SLUG_PARAMS = {
   properties: { slug: { type: 'string', pattern: '^[a-zA-Z0-9_-]{1,100}$' } },
 } as const
 
+const SURVEY_SELECT = `
+  id, slug, title, description, config, is_active, created_at, owner_id
+`
+
+async function canDeleteSurvey(ctx: AuthContext, surveyId: number): Promise<boolean> {
+  if (isFullAccess(ctx)) return true
+  if (ctx.kind !== 'oauth') return false
+  const row = await queryOne<{ owner_id: string | null }>(
+    `select owner_id from surveys where id = $1`,
+    [surveyId],
+  )
+  return row?.owner_id === ctx.userId
+}
+
 export async function surveysRoutes(app: FastifyInstance) {
 
   app.get('/surveys', async (_req, reply) => {
     const rows = await query<Survey>(`
-      select id, slug, title, description, config, is_active, created_at
+      select ${SURVEY_SELECT}
       from surveys
       where is_active = true
       order by created_at asc
@@ -26,12 +44,28 @@ export async function surveysRoutes(app: FastifyInstance) {
     reply.send(rows)
   })
 
-  app.get('/admin/surveys', { preHandler: requireAdminKey }, async (_req, reply) => {
-    const rows = await query<Survey>(`
-      select id, slug, title, description, config, is_active, created_at
-      from surveys
-      order by created_at asc
-    `)
+  app.get('/admin/surveys', { preHandler: requireAdminKey }, async (req, reply) => {
+    const ctx = req.authCtx!
+
+    if (isFullAccess(ctx)) {
+      const rows = await query<Survey>(`
+        select ${SURVEY_SELECT}
+        from surveys
+        order by created_at asc
+      `)
+      return reply.send(rows)
+    }
+
+    const ids = await accessibleSurveyIds(ctx)
+    if (ids.length === 0) return reply.send([])
+
+    const rows = await query<Survey>(
+      `select ${SURVEY_SELECT}
+       from surveys
+       where id = any($1::bigint[])
+       order by created_at asc`,
+      [ids],
+    )
     reply.send(rows)
   })
 
@@ -42,12 +76,17 @@ export async function surveysRoutes(app: FastifyInstance) {
       schema: { params: ID_PARAMS },
     },
     async (req, reply) => {
+      const ctx = req.authCtx!
+      const id = Number(req.params.id)
       const row = await queryOne<Survey>(
-        `select id, slug, title, description, config, is_active, created_at
+        `select ${SURVEY_SELECT}
          from surveys where id = $1`,
-        [Number(req.params.id)],
+        [id],
       )
       if (!row) return reply.code(404).send({ error: 'Опрос не найден' })
+      if (!(await canAccessSurvey(ctx, id))) {
+        return reply.code(403).send({ error: 'Нет доступа к опросу' })
+      }
       reply.send(row)
     },
   )
@@ -56,7 +95,7 @@ export async function surveysRoutes(app: FastifyInstance) {
     schema: { params: SLUG_PARAMS },
   }, async (req, reply) => {
     const row = await queryOne<Survey>(
-      `select id, slug, title, description, config, is_active, created_at
+      `select ${SURVEY_SELECT}
        from surveys where slug = $1 and is_active = true`,
       [req.params.slug],
     )
@@ -83,13 +122,15 @@ export async function surveysRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
+      const ctx = req.authCtx!
       const { slug, title, description, config } = req.body
+      const ownerId = ctx.kind === 'oauth' ? ctx.userId : null
 
       const row = await queryOne<Survey>(
-        `insert into surveys (slug, title, description, config)
-         values ($1, $2, $3, $4)
+        `insert into surveys (slug, title, description, config, owner_id)
+         values ($1, $2, $3, $4, $5)
          returning *`,
-        [slug, title, description ?? null, JSON.stringify(config ?? {})],
+        [slug, title, description ?? null, JSON.stringify(config ?? {}), ownerId],
       )
       if (!row) return reply.code(500).send({ error: 'Insert failed' })
 
@@ -118,9 +159,14 @@ export async function surveysRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
+      const ctx = req.authCtx!
+      const id = Number(req.params.id)
+      if (!(await canAccessSurvey(ctx, id))) {
+        return reply.code(403).send({ error: 'Нет доступа к опросу' })
+      }
       const row = await queryOne<Survey>(
         `update surveys set config = $1 where id = $2 returning *`,
-        [JSON.stringify(req.body.config), Number(req.params.id)],
+        [JSON.stringify(req.body.config), id],
       )
       if (!row) return reply.code(404).send({ error: 'Опрос не найден' })
 
@@ -134,7 +180,7 @@ export async function surveysRoutes(app: FastifyInstance) {
     },
   )
 
-  app.put<{ Params: { id: string }; Body: { title?: string; description?: string; is_active?: boolean } }>(
+  app.put<{ Params: { id: string }; Body: { title?: string; description?: string; is_active?: boolean; slug?: string } }>(
     '/admin/surveys/:id',
     {
       preHandler: requireAdminKey,
@@ -143,6 +189,7 @@ export async function surveysRoutes(app: FastifyInstance) {
         body: {
           type: 'object',
           properties: {
+            slug:        { type: 'string', pattern: '^[a-zA-Z0-9_-]{1,100}$' },
             title:       { type: 'string', minLength: 1, maxLength: 300 },
             description: { type: 'string', maxLength: 2000 },
             is_active:   { type: 'boolean' },
@@ -152,15 +199,31 @@ export async function surveysRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
-      const { title, description, is_active } = req.body
+      const ctx = req.authCtx!
+      const id = Number(req.params.id)
+      if (!(await canAccessSurvey(ctx, id))) {
+        return reply.code(403).send({ error: 'Нет доступа к опросу' })
+      }
+      const { title, description, is_active, slug: slugRaw } = req.body
+      const slug = slugRaw?.trim()
+      if (slug !== undefined && slug.length > 0) {
+        const taken = await queryOne<{ id: number }>(
+          `select id from surveys where slug = $1 and id <> $2`,
+          [slug, id],
+        )
+        if (taken) {
+          return reply.code(409).send({ error: 'Такой URL (slug) уже занят' })
+        }
+      }
       const row = await queryOne<Survey>(
         `update surveys
-         set title       = coalesce($1, title),
-             description = coalesce($2, description),
-             is_active   = coalesce($3, is_active)
-         where id = $4
+         set slug        = coalesce($1, slug),
+             title       = coalesce($2, title),
+             description = coalesce($3, description),
+             is_active   = coalesce($4, is_active)
+         where id = $5
          returning *`,
-        [title ?? null, description ?? null, is_active ?? null, Number(req.params.id)],
+        [slug ?? null, title ?? null, description ?? null, is_active ?? null, id],
       )
       if (!row) return reply.code(404).send({ error: 'Опрос не найден' })
 
@@ -181,8 +244,64 @@ export async function surveysRoutes(app: FastifyInstance) {
       schema: { params: ID_PARAMS },
     },
     async (req, reply) => {
-      await query('delete from surveys where id = $1', [Number(req.params.id)])
+      const ctx = req.authCtx!
+      const id = Number(req.params.id)
+      if (!(await canDeleteSurvey(ctx, id))) {
+        return reply.code(403).send({ error: 'Удалить может только владелец или администратор' })
+      }
+      const deleted = await queryOne<{ id: number }>(
+        `delete from surveys where id = $1 returning id`,
+        [id],
+      )
+      if (!deleted) return reply.code(404).send({ error: 'Опрос не найден' })
       reply.code(204).send()
+    },
+  )
+
+  app.post<{ Params: { id: string }; Body: { email: string } }>(
+    '/admin/surveys/:id/share',
+    {
+      preHandler: requireGlobalAdmin,
+      schema: {
+        params: ID_PARAMS,
+        body: {
+          type: 'object',
+          required: ['email'],
+          properties: {
+            email: { type: 'string', format: 'email', maxLength: 320 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (req, reply) => {
+      const ctx = req.authCtx!
+      const surveyId = Number(req.params.id)
+      const survey = await queryOne<{ id: number }>(
+        `select id from surveys where id = $1`,
+        [surveyId],
+      )
+      if (!survey) return reply.code(404).send({ error: 'Опрос не найден' })
+
+      const profile = await getProfileByEmail(req.body.email)
+      if (!profile) {
+        return reply.code(404).send({
+          error: 'Пользователь с таким email ещё не заходил в систему',
+        })
+      }
+
+      const grantedBy = ctx.kind === 'oauth' ? ctx.userId : null
+
+      await query(
+        `insert into survey_access (survey_id, user_id, granted_by)
+         values ($1, $2, $3)
+         on conflict (survey_id, user_id) do update set
+           granted_by = excluded.granted_by,
+           granted_at = now()`,
+        [surveyId, profile.id, grantedBy],
+      )
+
+      reply.send({ ok: true, user_id: profile.id, email: profile.email })
     },
   )
 }

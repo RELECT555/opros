@@ -1,6 +1,4 @@
 import { easeOut } from 'framer-motion'
-import type { DynamicFormData } from './types'
-
 export const phoneRegex = /^[\d\s+\-()]{7,}$/
 
 export const slideVariants = {
@@ -40,6 +38,3 @@ export function scaleColor(ratio: number): string {
   return `rgb(${r},${g},${b})`
 }
 
-export function isContactsDone(form: DynamicFormData): boolean {
-  return form.name.trim().length > 0 && phoneRegex.test(form.phone.trim())
-}

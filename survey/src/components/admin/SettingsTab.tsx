@@ -2,7 +2,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SavedIcon } from './AdminFormParts'
-import { setGlobalTheme, getGlobalTheme } from '../../lib/supabase'
+import { setGlobalTheme, getGlobalTheme } from '../../lib/api-client'
+import {
+  ADMIN_WELCOME_AUTOSHOW_EVENT,
+  ADMIN_WELCOME_AUTOSHOW_KEY,
+  getAdminWelcomeAutoshow,
+  setAdminWelcomeAutoshow,
+} from '../../lib/adminWelcomePref'
 
 /* ── Storage keys ── */
 const SETTINGS_KEY = 'askly_app_settings_v1'
@@ -157,6 +163,7 @@ export function toggleAdminUiMode(): void {
 export function SettingsTab() {
   const [settings, setSettings] = useState<AppSettings>(loadAppSettings)
   const [theme, setThemeState]  = useState<AdminThemeStored>(loadAdminTheme)
+  const [welcomeAutoshowEnabled, setWelcomeAutoshowEnabled] = useState(() => getAdminWelcomeAutoshow())
   const [tgSaved, setTgSaved]         = useState(false)
   const [tgTesting, setTgTesting]     = useState(false)
   const [tgTestResult, setTgTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
@@ -167,6 +174,21 @@ export function SettingsTab() {
 
   /* Apply theme on mount and whenever it changes */
   useEffect(() => { applyAdminTheme(theme) }, [theme])
+
+  useEffect(() => {
+    function syncWelcomePref() {
+      setWelcomeAutoshowEnabled(getAdminWelcomeAutoshow())
+    }
+    function onStorage(e: StorageEvent) {
+      if (e.key === ADMIN_WELCOME_AUTOSHOW_KEY || e.key === null) syncWelcomePref()
+    }
+    window.addEventListener(ADMIN_WELCOME_AUTOSHOW_EVENT, syncWelcomePref)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener(ADMIN_WELCOME_AUTOSHOW_EVENT, syncWelcomePref)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [])
 
   /* Сайдбар меняет тему через localStorage + applyAdminTheme без обновления этого state */
   useEffect(() => {
@@ -457,6 +479,33 @@ export function SettingsTab() {
       </section>
 
       <div className="set-sections-grid">
+        <section className="set-section">
+          <div className="set-section-label">Экран приветствия</div>
+          <div className="set-section-desc">
+            Показывать приветствие при входе в админку. Настройка сохраняется в этом браузере и её можно менять в любой момент.
+          </div>
+          <div className="set-card">
+            <div className="set-row set-row--toggle">
+              <div>
+                <div className="set-row-label">Показывать при входе</div>
+                <div className="set-row-hint">Включено — модалка при каждом заходе; выключено — сразу рабочий экран</div>
+              </div>
+              <button
+                type="button"
+                className={`set-toggle ${welcomeAutoshowEnabled ? 'set-toggle--on' : ''}`}
+                onClick={() => setAdminWelcomeAutoshow(!welcomeAutoshowEnabled)}
+                role="switch"
+                aria-checked={welcomeAutoshowEnabled}
+              >
+                <span
+                  className="set-toggle-thumb"
+                  style={welcomeAutoshowEnabled ? { background: theme.accent } : {}}
+                />
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* ── Telegram ── */}
         <section className="set-section">
           <div className="set-section-label"><TelegramIcon />Telegram-уведомления</div>

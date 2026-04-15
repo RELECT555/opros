@@ -6,7 +6,7 @@ import Tab from '@mui/material/Tab'
 import {
   getResponsesPaged, getResponses, getTokens,
   updateResponseStatus, updateManagerNote, PAGE_SIZE,
-} from '../../lib/supabase'
+} from '../../lib/api-client'
 import type { SurveyRecord, TokenRecord, ResponseStatus, Survey } from '../../lib/supabase'
 import { ResponsesTabSkeleton } from './AdminSkeletons'
 

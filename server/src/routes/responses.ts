@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { db, query, queryOne } from '../db/client.js'
 import { requireAdminKey } from '../middleware/auth.js'
+import { accessibleSurveyIds, canAccessResponse, canAccessSurvey } from '../lib/access.js'
 import { sendTelegramNotification } from '../services/telegram.js'
 import { emitResponseNew, emitResponseStatus } from '../ws/index.js'
 import { httpLog } from '../logger.js'
@@ -131,14 +132,28 @@ export async function responsesRoutes(app: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
+    const ctx = req.authCtx!
     const surveyId = req.query.survey_id ? Number(req.query.survey_id) : null
     const page     = Math.max(0, Number(req.query.page ?? 0))
     const status   = req.query.status ?? null
 
+    const allowed = await accessibleSurveyIds(ctx)
+    if (allowed !== 'all' && allowed.length === 0) {
+      return reply.send({ data: [], total: 0, page, page_size: PAGE_SIZE })
+    }
+
     const conditions: string[] = []
     const params: unknown[]   = []
 
+    if (allowed !== 'all') {
+      params.push(allowed)
+      conditions.push(`survey_id = any($${params.length}::bigint[])`)
+    }
+
     if (surveyId !== null) {
+      if (!(await canAccessSurvey(ctx, surveyId))) {
+        return reply.code(403).send({ error: 'Нет доступа к опросу' })
+      }
       params.push(surveyId)
       conditions.push(`survey_id = $${params.length}`)
     }
@@ -185,9 +200,14 @@ export async function responsesRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
+      const ctx = req.authCtx!
+      const rid = Number(req.params.id)
+      if (!(await canAccessResponse(ctx, rid))) {
+        return reply.code(403).send({ error: 'Нет доступа' })
+      }
       const row = await queryOne<SurveyRecord>(
         `update survey_responses set status = $1 where id = $2 returning *`,
-        [req.body.status, Number(req.params.id)],
+        [req.body.status, rid],
       )
       if (!row) return reply.code(404).send({ error: 'Ответ не найден' })
 
@@ -220,9 +240,14 @@ export async function responsesRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
+      const ctx = req.authCtx!
+      const rid = Number(req.params.id)
+      if (!(await canAccessResponse(ctx, rid))) {
+        return reply.code(403).send({ error: 'Нет доступа' })
+      }
       const row = await queryOne<SurveyRecord>(
         `update survey_responses set manager_note = $1 where id = $2 returning *`,
-        [req.body.note, Number(req.params.id)],
+        [req.body.note, rid],
       )
       if (!row) return reply.code(404).send({ error: 'Ответ не найден' })
       reply.send(row)
@@ -247,7 +272,16 @@ export async function responsesRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
+      const ctx = req.authCtx!
+      const allowed = await accessibleSurveyIds(ctx)
+      if (allowed !== 'all' && allowed.length === 0) {
+        return reply.send({ data: [], limit: EXPORT_DEFAULT_LIMIT, offset: 0, has_more: false })
+      }
+
       const surveyId = req.query.survey_id ? Number(req.query.survey_id) : null
+      if (surveyId !== null && !(await canAccessSurvey(ctx, surveyId))) {
+        return reply.code(403).send({ error: 'Нет доступа к опросу' })
+      }
       const limitParsed = req.query.limit !== undefined ? Number(req.query.limit) : EXPORT_DEFAULT_LIMIT
       const offset = Math.max(0, Number(req.query.offset ?? 0))
       const limit = Math.min(
@@ -256,8 +290,16 @@ export async function responsesRoutes(app: FastifyInstance) {
       )
 
       const params: unknown[] = []
-      const where = surveyId !== null ? 'where survey_id = $1' : ''
-      if (surveyId !== null) params.push(surveyId)
+      const conditions: string[] = []
+      if (allowed !== 'all') {
+        params.push(allowed)
+        conditions.push(`survey_id = any($${params.length}::bigint[])`)
+      }
+      if (surveyId !== null) {
+        params.push(surveyId)
+        conditions.push(`survey_id = $${params.length}`)
+      }
+      const where = conditions.length ? `where ${conditions.join(' and ')}` : ''
 
       const limitIdx = params.length + 1
       const offsetIdx = params.length + 2

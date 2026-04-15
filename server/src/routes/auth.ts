@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { timingSafeEqual } from 'node:crypto'
 import { httpLog } from '../logger.js'
+import { attachAuthContext } from '../middleware/auth.js'
 
 function _safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false
@@ -46,11 +47,24 @@ export async function authRoutes(app: FastifyInstance) {
   )
 
   app.get('/auth/me', async (req, reply) => {
-    try {
-      await req.jwtVerify()
-      reply.send({ role: 'admin', authenticated: true })
-    } catch {
-      reply.code(401).send({ error: 'Token invalid or expired' })
+    const ctx = await attachAuthContext(app, req)
+    if (!ctx) {
+      return reply.code(401).send({ error: 'Token invalid or expired' })
     }
+
+    if (ctx.kind === 'password_admin') {
+      return reply.send({
+        auth: 'password_admin',
+      })
+    }
+
+    return reply.send({
+      auth: 'oauth',
+      user: {
+        id: ctx.userId,
+        email: ctx.email,
+        is_global_admin: ctx.isGlobalAdmin,
+      },
+    })
   })
 }

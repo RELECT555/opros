@@ -13,7 +13,7 @@ const fadeUp = (delay = 0) => ({
 
 export default function UpdatesPage() {
   return (
-    <div className="root lp-root">
+    <div className="root root--updates lp-root">
       <div className="bg-scene">
         <div className="bg-orb bg-orb--1" />
         <div className="bg-orb bg-orb--2" />
@@ -39,9 +39,8 @@ export default function UpdatesPage() {
 
       <div className="lp-wrap lp-wrap--updates">
         <motion.section className="lp-section lp-updates-hero" {...fadeUp(0.06)}>
-          <div className="lp-section__label">Продукт</div>
           <h1 className="lp-section__title">Что нового</h1>
-          <p className="lp-hero__sub" style={{ maxWidth: '520px', marginTop: '12px' }}>
+          <p className="lp-hero__sub">
             Краткая история заметных изменений в Askly. Мы дополняем список по мере выхода функций и улучшений.
           </p>
         </motion.section>

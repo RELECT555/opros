@@ -1,3 +1,14 @@
+# Opros — фронтенд опросов (Vite + React)
+
+Документация проекта:
+
+- [`docs/AUTH_AND_ACCESS.md`](../docs/AUTH_AND_ACCESS.md) — план авторизации (Google, Microsoft), владельцы опросов, доступ глобального админа; актуально при смене бэкенда.
+- [`server/DATABASE.md`](../server/DATABASE.md) — схема PostgreSQL.
+
+Для админки с OAuth: в `.env` задайте `VITE_API_URL` (и при необходимости `VITE_WS_URL`) на свой `server`, в Supabase включите провайдеры Google/Azure и redirect на `https://…/admin`. На сервере — `SUPABASE_JWT_SECRET`, `GLOBAL_ADMIN_EMAILS`.
+
+---
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

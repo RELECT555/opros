@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
-import { getSurveyBySlug, saveSurveyResponseGeneric, markTokenOpened, updateSurveyConfig } from '../lib/supabase'
+import { getSurveyBySlug, saveSurveyResponseGeneric, markTokenOpened, updateSurveyConfig } from '../lib/api-client'
 import { isAdminAuthenticated } from '../lib/adminSession'
 import type { Survey, SurveyDesign, SurveyQuestion, SurveyConfigData } from '../lib/supabase'
 import { mergeSurveyDesign, buildSurveyDesignStylesheet } from '../lib/surveyDesign'
@@ -11,6 +11,11 @@ import {
   orderedQuestionsFromCanvas,
   stepWidthClassForQuestionId,
 } from '../lib/surveyCanvas'
+import {
+  allRequiredConsentsChecked,
+  contactsStepComplete,
+  mergeContactsBlockConfig,
+} from '../lib/contactsBlock'
 function applySurveyDesign(d?: SurveyDesign) {
   const styleId = 'survey-design-vars'
   let el = document.getElementById(styleId) as HTMLStyleElement | null
@@ -58,8 +63,14 @@ export default function SurveyPage({ slug }: Props) {
   const [screen, setScreen] = useState<'welcome' | 'survey'>('welcome')
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
-  const [consent, setConsent] = useState(false)
-  const [form, setForm] = useState<DynamicFormData>({ answers: {}, name: '', phone: '', email: '', comment: '' })
+  const [form, setForm] = useState<DynamicFormData>({
+    answers: {},
+    name: '',
+    phone: '',
+    email: '',
+    comment: '',
+    consentChecks: {},
+  })
   const [token] = useState(() => new URLSearchParams(window.location.search).get('t') ?? undefined)
   const editorFromUrl = searchParams.get('edit') === '1' || searchParams.get('a') === '1'
   const canvasUnlockCv = searchParams.get('cv')
@@ -117,7 +128,7 @@ export default function SurveyPage({ slug }: Props) {
       .then(s => {
         if (!s) { setLoadError('Опрос не найден'); return }
         setSurvey(s)
-        setForm(emptyFormData(orderedQuestionsFromCanvas(s.config)))
+        setForm(emptyFormData(orderedQuestionsFromCanvas(s.config), s.config.contacts_block))
         if (token) markTokenOpened(token)
         applySurveyDesign(s.config.design)
         // Сохраняем slug в историю посещённых опросов
@@ -149,7 +160,7 @@ export default function SurveyPage({ slug }: Props) {
     setSurvey(prev => {
       if (!prev) return prev
       const nextCfg = fn(prev.config)
-      setForm(emptyFormData(orderedQuestionsFromCanvas(nextCfg)))
+      setForm(emptyFormData(orderedQuestionsFromCanvas(nextCfg), nextCfg.contacts_block))
       flushSave(prev.id, nextCfg)
       return { ...prev, config: nextCfg }
     })
@@ -172,7 +183,7 @@ export default function SurveyPage({ slug }: Props) {
   }
 
   const questions = orderedQuestionsFromCanvas(survey.config)
-  const validPhone = /^[\d\s+\-()]{7,}$/.test(form.phone.trim())
+  const contactsResolved = mergeContactsBlockConfig(survey.config.contacts_block)
 
   function isAnswered(q: typeof questions[number]): boolean {
     if (q.type === 'checkbox') return ((form.answers[q.id] as string[]) ?? []).length > 0
@@ -181,9 +192,8 @@ export default function SurveyPage({ slug }: Props) {
 
   const canSubmit =
     questions.every(q => isAnswered(q)) &&
-    form.name.trim().length > 0 &&
-    validPhone &&
-    consent
+    contactsStepComplete(form, contactsResolved) &&
+    allRequiredConsentsChecked(form, contactsResolved)
 
   async function handleSubmit() {
     if (!canSubmit) return
@@ -206,10 +216,9 @@ export default function SurveyPage({ slug }: Props) {
   }
 
   function handleReset() {
-    setForm(emptyFormData(questions))
+    setForm(emptyFormData(questions, survey.config.contacts_block))
     setStatus('idle')
     setScreen('welcome')
-    setConsent(false)
   }
 
   async function handleLiveQuestionSave(updated: SurveyQuestion, index: number) {
@@ -306,8 +315,7 @@ export default function SurveyPage({ slug }: Props) {
             setForm={setForm}
             status={status}
             canSubmit={canSubmit}
-            consent={consent}
-            setConsent={setConsent}
+            contactsBlock={contactsResolved}
             handleSubmit={handleSubmit}
             errorMsg={errorMsg}
             token={token}

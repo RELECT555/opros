@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { join } from 'node:path'
-import Fastify, { type FastifyError } from 'fastify'
+import Fastify, { type FastifyError, type FastifyInstance } from 'fastify'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
@@ -15,6 +15,7 @@ import { tokensRoutes }    from './routes/tokens.js'
 import { configRoutes }    from './routes/config.js'
 import { uploadsRoutes }   from './routes/uploads.js'
 import { authRoutes }      from './routes/auth.js'
+import { setAuthApp }      from './middleware/auth.js'
 import {
   handleConnection,
   setWsJwtVerifier,
@@ -36,9 +37,26 @@ await app.register(helmet, {
 })
 
 // ── CORS ───────────────────────────────────────────────────
+function corsOrigin(): boolean | string | string[] {
+  const raw = process.env.FRONTEND_URL?.trim()
+  if (raw) {
+    if (raw.includes(',')) {
+      return raw.split(',').map((s) => s.trim()).filter(Boolean)
+    }
+    return raw
+  }
+  /* Без FRONTEND_URL в dev отражаем Origin — иначе Vite (:5173) и другие порты не попадут в allow list */
+  if (process.env.NODE_ENV !== 'production') {
+    return true
+  }
+  return '*'
+}
+
 await app.register(cors, {
-  origin: process.env.FRONTEND_URL ?? '*',
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  origin: corsOrigin(),
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400,
 })
 
 // ── Rate limiting ──────────────────────────────────────────
@@ -63,6 +81,8 @@ if (!jwtSecret || jwtSecret.length < 16) {
 await app.register(fastifyJwt, {
   secret: jwtSecretEffective,
 })
+
+setAuthApp(app as unknown as FastifyInstance)
 
 setWsJwtVerifier((token) => {
   try {

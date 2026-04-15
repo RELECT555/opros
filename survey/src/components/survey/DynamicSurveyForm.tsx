@@ -15,13 +15,19 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
-import type { SurveyQuestion, SurveyCanvasPage, SurveyCanvasBlock, SurveyConfigData } from '../../lib/supabase'
+import type { SurveyQuestion, SurveyCanvasPage, SurveyCanvasBlock, SurveyConfigData, ContactsBlockConfig } from '../../lib/supabase'
+import {
+  allRequiredConsentsChecked,
+  contactsStepComplete,
+  emptyConsentChecks,
+  mergeContactsBlockConfig,
+  type ResolvedContactsBlock,
+} from '../../lib/contactsBlock'
 import { LiveQuestionEditorModal } from './LiveQuestionEditorModal'
 import { ContactsCard } from './dynamic-form/ContactsCard'
 import { QuestionCard } from './dynamic-form/QuestionCard'
 import type { DynamicFormData, DynamicFormStatus } from './dynamic-form/types'
 import { emptyDynamicFormData } from './dynamic-form/types'
-import { isContactsDone } from './dynamic-form/utils'
 import { CanvasBlockView } from './canvas/CanvasBlockView'
 import { CanvasLiveStepEditorShell } from './canvas/CanvasLiveStepEditorShell'
 import { SortableCanvasItem } from './canvas/SortableCanvasItem'
@@ -43,8 +49,10 @@ import {
 export type { DynamicFormData }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function emptyFormData(questions: SurveyQuestion[]): DynamicFormData {
-  return emptyDynamicFormData(questions)
+export function emptyFormData(questions: SurveyQuestion[], contacts?: ContactsBlockConfig): DynamicFormData {
+  const base = emptyDynamicFormData(questions)
+  const resolved = mergeContactsBlockConfig(contacts)
+  return { ...base, consentChecks: emptyConsentChecks(resolved) }
 }
 
 interface Props {
@@ -53,8 +61,7 @@ interface Props {
   setForm: (f: DynamicFormData) => void
   status: DynamicFormStatus
   canSubmit: boolean
-  consent: boolean
-  setConsent: (v: boolean) => void
+  contactsBlock: ResolvedContactsBlock
   handleSubmit: () => void
   errorMsg: string
   token?: string
@@ -73,8 +80,7 @@ export function DynamicSurveyForm({
   setForm,
   status,
   canSubmit,
-  consent,
-  setConsent,
+  contactsBlock,
   handleSubmit,
   errorMsg,
   token,
@@ -140,7 +146,7 @@ export function DynamicSurveyForm({
     return questions.findIndex(x => x.id === q.id)
   }
 
-  const contactsDone = isContactsDone(form)
+  const contactsDone = contactsStepComplete(form, contactsBlock)
   const isLastStep = step === totalSteps - 1
 
   const canGoNext = canvasMode
@@ -151,24 +157,43 @@ export function DynamicSurveyForm({
     ? [...canvasContentPages!.map(p => ({ done: canvasPageDone(p) })), { done: contactsDone }]
     : [...questions.map(q => ({ done: isAnswered(q) })), { done: contactsDone }]
 
-  const consentCard = (
-    <motion.label className={`consent-card consent-card--inline ${consent ? 'consent-card--on' : ''}`} whileTap={{ scale: 0.99 }}>
-      <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} className="consent-checkbox-hidden" />
-      <span className="consent-box">
-        <AnimatePresence>
-          {consent && (
-            <motion.svg key="check" width="12" height="12" viewBox="0 0 12 12" fill="none" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.18 }}>
-              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </motion.svg>
+  function setConsentChecked(id: string, checked: boolean) {
+    setForm({ ...form, consentChecks: { ...form.consentChecks, [id]: checked } })
+  }
+
+  const consentCards = contactsBlock.consents.map(c => {
+    const on = !!form.consentChecks[c.id]
+    return (
+      <motion.label key={c.id} className={`consent-card consent-card--inline ${on ? 'consent-card--on' : ''}`} whileTap={{ scale: 0.99 }}>
+        <input type="checkbox" checked={on} onChange={e => setConsentChecked(c.id, e.target.checked)} className="consent-checkbox-hidden" />
+        <span className="consent-box">
+          <AnimatePresence>
+            {on && (
+              <motion.svg key="check" width="12" height="12" viewBox="0 0 12 12" fill="none" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.18 }}>
+                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </motion.svg>
+            )}
+          </AnimatePresence>
+        </span>
+        <span className="consent-body">
+          <span className="consent-title">{c.title}</span>
+          {(c.description || c.linkUrl) && (
+            <span className="consent-sub">
+              {c.description}
+              {c.linkUrl ? (
+                <>
+                  {c.description ? ' ' : null}
+                  <a href={c.linkUrl} target="_blank" rel="noopener noreferrer" className="consent-link" onClick={e => e.stopPropagation()}>
+                    {c.linkLabel?.trim() || 'Открыть документ'}
+                  </a>
+                </>
+              ) : null}
+            </span>
           )}
-        </AnimatePresence>
-      </span>
-      <span className="consent-body">
-        <span className="consent-title">Согласие на обработку данных</span>
-        <span className="consent-sub">Нажимая «Отправить», вы соглашаетесь с политикой конфиденциальности</span>
-      </span>
-    </motion.label>
-  )
+        </span>
+      </motion.label>
+    )
+  })
 
   const submitButtonEl = (
     <motion.button
@@ -185,7 +210,9 @@ export function DynamicSurveyForm({
             <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </>
-      ) : !consent ? 'Подтвердите согласие' : 'Заполните контакты'}
+      ) : !allRequiredConsentsChecked(form, contactsBlock)
+        ? contactsBlock.submitHintNeedConsents
+        : contactsBlock.submitHintNeedContacts}
     </motion.button>
   )
 
@@ -598,7 +625,7 @@ export function DynamicSurveyForm({
                   </div>
                 )
               ) : (
-                <ContactsCard key="contacts" form={form} setForm={setForm} questionsCount={questions.length} token={token} dir={dir} />
+                <ContactsCard key="contacts" block={contactsBlock} form={form} setForm={setForm} questionsCount={questions.length} token={token} dir={dir} />
               )}
             </AnimatePresence>
           </div>
@@ -607,7 +634,7 @@ export function DynamicSurveyForm({
             {isLastStep ? (
               <>
                 <div className="sf-nav-final-consent">
-                  {consentCard}
+                  {consentCards}
                   {status === 'error' && <p className="err-msg">{errorMsg}</p>}
                 </div>
                 {submitButtonEl}
@@ -653,9 +680,9 @@ export function DynamicSurveyForm({
               />
             </div>
           ))}
-          <ContactsCard form={form} setForm={setForm} questionsCount={questions.length} token={token} dir={0} />
+          <ContactsCard block={contactsBlock} form={form} setForm={setForm} questionsCount={questions.length} token={token} dir={0} />
           <div className="sf-nav-submit-wrap">
-            {consentCard}
+            {consentCards}
             {status === 'error' && <p className="err-msg">{errorMsg}</p>}
             {submitButtonEl}
           </div>

@@ -118,6 +118,14 @@ npm run dev   # или npm start
 └──────────────────────┘
 ```
 
+### Авторизация и владельцы опросов (план)
+
+В текущих миграциях у `surveys` **нет** поля владельца; админка закрыта отдельным JWT (см. `survey/src/lib/adminSession.ts` и `server`-авторизацию). Целевая модель: OAuth (Google + Microsoft через Azure), изоляция опросов по владельцу, выдача доступа глобальным админом, опционально RLS в Supabase.
+
+**Подробно и чеклист при переносе бэкенда:** [`docs/AUTH_AND_ACCESS.md`](../docs/AUTH_AND_ACCESS.md).
+
+После миграции **`003_auth_profiles.sql`** добавлены `profiles`, `survey_access`, у `surveys` есть **`owner_id`** (uuid, nullable для старых строк).
+
 ---
 
 ## Таблицы подробно
@@ -132,6 +140,7 @@ npm run dev   # или npm start
 | `description` | `text` | — | Краткое описание |
 | `config` | `jsonb` | NOT NULL, default `'{}'` | Вопросы, дизайн, настройки (см. структуру ниже) |
 | `is_active` | `boolean` | NOT NULL, default `true` | Виден ли на публичной странице |
+| `owner_id` | `uuid` | FK → `profiles(id)`, nullable | Владелец (OAuth); `NULL` — наследие / создано пароль-админом |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | Дата создания |
 
 **Структура `config` (jsonb):**

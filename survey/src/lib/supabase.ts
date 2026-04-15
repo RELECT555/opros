@@ -134,6 +134,42 @@ export interface SurveyCanvas {
   pages: SurveyCanvasPage[]
 }
 
+/** Одна галочка согласия (текст, опционально ссылка на PDF / политику). */
+export type SurveyConsentItem = {
+  id: string
+  title: string
+  description: string
+  linkUrl?: string
+  linkLabel?: string
+  required: boolean
+}
+
+export type ContactsFieldPartial = {
+  enabled?: boolean
+  required?: boolean
+  label?: string
+  placeholder?: string
+  /** Для необязательных полей — подпись «(необязательно)» в карточке */
+  show_optional_hint?: boolean
+}
+
+/** Настройка финального блока «контакты + согласия» (редактируется в админке). */
+export type ContactsBlockConfig = {
+  step_pill_label?: string
+  step_pill_done_label?: string
+  title?: string
+  subtitle?: string
+  /** Если false — при персональной ссылке с токеном поле email всё равно показывается */
+  hide_email_when_token?: boolean
+  name?: ContactsFieldPartial
+  phone?: ContactsFieldPartial
+  email?: ContactsFieldPartial
+  comment?: ContactsFieldPartial
+  consents?: SurveyConsentItem[]
+  submit_hint_need_consents?: string
+  submit_hint_need_contacts?: string
+}
+
 export interface SurveyConfigData {
   welcome_title?: string
   welcome_sub?: string
@@ -146,6 +182,8 @@ export interface SurveyConfigData {
   editor_mode?: SurveyEditorMode
   /** Схема страниц и блоков для режима canvas. */
   canvas?: SurveyCanvas
+  /** Блок контактов и согласий в конце опроса */
+  contacts_block?: ContactsBlockConfig
 }
 
 export interface Survey {
@@ -156,6 +194,8 @@ export interface Survey {
   config: SurveyConfigData
   is_active: boolean
   created_at: string
+  /** Владелец (OAuth); нет — наследие / создано пароль-админом */
+  owner_id?: string | null
 }
 
 // ── Response types ──────────────────────────────────────────

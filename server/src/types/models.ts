@@ -70,6 +70,38 @@ export type SurveyCanvasPage = {
 }
 export type SurveyCanvas = { pages: SurveyCanvasPage[] }
 
+export type SurveyConsentItem = {
+  id: string
+  title: string
+  description: string
+  linkUrl?: string
+  linkLabel?: string
+  required: boolean
+}
+
+export type ContactsFieldPartial = {
+  enabled?: boolean
+  required?: boolean
+  label?: string
+  placeholder?: string
+  show_optional_hint?: boolean
+}
+
+export type ContactsBlockConfig = {
+  step_pill_label?: string
+  step_pill_done_label?: string
+  title?: string
+  subtitle?: string
+  hide_email_when_token?: boolean
+  name?: ContactsFieldPartial
+  phone?: ContactsFieldPartial
+  email?: ContactsFieldPartial
+  comment?: ContactsFieldPartial
+  consents?: SurveyConsentItem[]
+  submit_hint_need_consents?: string
+  submit_hint_need_contacts?: string
+}
+
 export type SurveyConfigData = {
   welcome_title?: string
   welcome_sub?: string
@@ -79,6 +111,7 @@ export type SurveyConfigData = {
   legacy_analytics?: SurveyLegacyAnalytics
   editor_mode?: SurveyEditorMode
   canvas?: SurveyCanvas
+  contacts_block?: ContactsBlockConfig
 }
 
 export type Survey = {
@@ -89,6 +122,8 @@ export type Survey = {
   config: SurveyConfigData
   is_active: boolean
   created_at: string
+  /** Владелец (OAuth); null — наследие / создано пароль-админом */
+  owner_id?: string | null
 }
 
 export type SurveyRecord = {

@@ -3,7 +3,7 @@ import { motion, easeOut, AnimatePresence } from 'framer-motion'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import { List, type RowComponentProps } from 'react-window'
-import { getTokens, createTokens, deleteToken, regenerateToken } from '../../lib/supabase'
+import { getTokens, createTokens, deleteToken, regenerateToken } from '../../lib/api-client'
 import type { TokenRecord } from '../../lib/supabase'
 import { AdminSkeletonRows } from './AdminSkeletons'
 
