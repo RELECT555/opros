@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
-import { SparklesCore } from '../ui/sparkles'
+import { SparklesCore } from '../ui/Sparkles'
 
 type AdminWelcomeModalProps = {
   open: boolean
