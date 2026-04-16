@@ -2,8 +2,34 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../lib/supabase'
 import { login, fetchMeOrThrow } from '../../lib/api-client'
+import { API_BASE_URL, isProductionApiMisconfigured } from '../../lib/apiBaseUrl'
 
 const ADMIN_ORIGIN = `${window.location.origin}/admin`
+
+function isNetworkFetchFailure(msg: string): boolean {
+  const m = msg.toLowerCase()
+  return (
+    m.includes('failed to fetch') ||
+    m.includes('networkerror') ||
+    m.includes('load failed') ||
+    m.includes('network request failed') ||
+    m.includes('the internet connection appears to be offline') ||
+    m.includes('connection was lost')
+  )
+}
+
+function isUpstreamOrApiMisconfig(msg: string): boolean {
+  const m = msg.toLowerCase()
+  return (
+    m.includes('502') ||
+    m.includes('503') ||
+    m.includes('504') ||
+    m.includes('bad gateway') ||
+    m.includes('gateway timeout') ||
+    m.includes('invalid response from server') ||
+    m.includes('expected json')
+  )
+}
 
 export function LoginScreen({
   onAuth,
@@ -32,9 +58,19 @@ export function LoginScreen({
       if (msg.includes('Неверный') || msg.includes('401')) {
         setWrong(true)
         setTimeout(() => setWrong(false), 2000)
-      } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+      } else if (isNetworkFetchFailure(msg)) {
+        if (import.meta.env.PROD) {
+          setErr(
+            `Не удалось связаться с API (${API_BASE_URL || 'same origin'}). Разверните server в интернете, в Vercel задайте VITE_API_URL на его HTTPS-адрес (без /api) и пересоберите. На server в FRONTEND_URL укажите URL этого сайта (CORS).`,
+          )
+        } else {
+          setErr(
+            `Не удалось связаться с API (${API_BASE_URL}). Запустите server (npm run dev в папке server). В survey/.env задайте VITE_API_URL. Для CORS в server/.env: FRONTEND_URL=http://localhost:5173.`,
+          )
+        }
+      } else if (isUpstreamOrApiMisconfig(msg)) {
         setErr(
-          `Не удалось связаться с API (${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}). Запущен ли server? В survey/.env задайте VITE_API_URL. Если CORS: в server/.env для dev укажите FRONTEND_URL=http://localhost:5173 (порт как у Vite).`,
+          'Шлюз вернул 502/503 или ответ не JSON: публичный API не настроен или недоступен. В Vercel → Environment Variables (Production) задайте VITE_API_URL = https://… (корень вашего server, без /api), сделайте Redeploy. На server в FRONTEND_URL укажите URL этого сайта. Убедитесь, что API в интернете отвечает по HTTPS.',
         )
       } else {
         setErr(msg)
@@ -77,6 +113,13 @@ export function LoginScreen({
       <div className="ls-glow ls-glow--2" />
       <div className="ls-noise" />
 
+      <div className="ls-login-stack">
+      {isProductionApiMisconfigured() && (
+        <div className="ls-deploy-banner" role="alert">
+          В <code className="ls-deploy-code">VITE_API_URL</code> для продакшена указан localhost — задайте
+          публичный HTTPS-адрес API в Vercel (Environment Variables) и пересоберите проект. См. survey/README.
+        </div>
+      )}
       <motion.div
         className="ls-card"
         initial={{ opacity: 0, y: 16 }}
@@ -182,6 +225,7 @@ export function LoginScreen({
           {loading ? <span className="ls-spinner" /> : 'Войти по паролю'}
         </motion.button>
       </motion.div>
+      </div>
     </div>
   )
 }

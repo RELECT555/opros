@@ -7,6 +7,17 @@
 
 Для админки с OAuth: в `.env` задайте `VITE_API_URL` (и при необходимости `VITE_WS_URL`) на свой `server`, в Supabase включите провайдеры Google/Azure и redirect на `https://…/admin`. На сервере — `SUPABASE_JWT_SECRET`, `GLOBAL_ADMIN_EMAILS`.
 
+## Деплой фронта на Vercel (без Git к API)
+
+Фронт на Vercel — статика; **пароль и данные админки** обрабатывает ваш развёрнутый **`server`** (Node API).
+
+1. Разверните `server` с публичным **HTTPS** (Railway, Render, VPS и т.д.): `DATABASE_URL`, `ADMIN_PASSWORD`, `JWT_SECRET`, при OAuth — `SUPABASE_JWT_SECRET`.
+2. На API в `.env`: **`FRONTEND_URL`** = URL сайта на Vercel (например `https://survey-nine-zeta.vercel.app`), иначе CORS заблокирует браузер.
+3. В Vercel → **Settings → Environment Variables** (Production): **`VITE_API_URL`** = корень API **без** `/api` (например `https://xxx.up.railway.app`). Сохраните и сделайте **Redeploy** — переменные `VITE_*` вшиваются при **сборке**.
+4. Не оставляйте в `vercel.json` прокси на несуществующий хост: это даёт **502** в браузере. Либо рабочий rewrite на реальный API, либо только SPA-rewrite как в репозитории и доступ к API через **`VITE_API_URL`**.
+
+**Локально:** без `VITE_API_URL` в `survey/.env` фронт ходит на `http://localhost:3001` — запустите `server` (`npm run dev` в папке `server`).
+
 ---
 
 # React + TypeScript + Vite

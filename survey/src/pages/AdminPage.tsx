@@ -24,6 +24,7 @@ import { supabase } from '../lib/supabase'
 import { isCanvasSurvey } from '../lib/surveyCanvas'
 import { questionsLiveEditHref } from '../lib/liveEditLinks'
 import { markAdminAuthenticated, clearAdminAuthenticated } from '../lib/adminSession'
+import { API_BASE_URL } from '../lib/apiBaseUrl'
 import {
   ADMIN_WELCOME_AUTOSHOW_EVENT,
   ADMIN_WELCOME_AUTOSHOW_KEY,
@@ -72,7 +73,6 @@ export default function AdminPage() {
 
   useEffect(() => {
     let cancelled = false
-    const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3001'
     ;(async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (cancelled) return
@@ -85,7 +85,7 @@ export default function AdminPage() {
           setAuthed(true)
         } else {
           setAuthError(
-            `OAuth-сессия есть (Supabase), но API-сервер (${API_URL}) не отвечает или вернул ошибку. ` +
+            `OAuth-сессия есть (Supabase), но API-сервер (${API_BASE_URL}) не отвечает или вернул ошибку. ` +
             `Убедитесь: 1) server запущен (npm run dev в папке server); ` +
             `2) в server/.env заданы SUPABASE_JWT_SECRET (из Supabase Dashboard → Settings → API → JWT Secret) ` +
             `и ADMIN_PASSWORD; ` +
@@ -108,7 +108,6 @@ export default function AdminPage() {
   }, [])
 
   useEffect(() => {
-    const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3001'
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.access_token) {
         setAuthError(null)
@@ -119,7 +118,7 @@ export default function AdminPage() {
           setAuthed(true)
         } else {
           setAuthError(
-            `OAuth OK, но API-сервер (${API_URL}) недоступен. ` +
+            `OAuth OK, но API-сервер (${API_BASE_URL}) недоступен. ` +
             `Запустите server (npm run dev) и убедитесь, что в server/.env задан SUPABASE_JWT_SECRET.`,
           )
         }
@@ -156,12 +155,10 @@ export default function AdminPage() {
   }, [])
 
   useEffect(() => {
-    if (!authed) {
-      setAdminWelcomeOpen(false)
-      return
-    }
-    if (welcomeAutoshow) setAdminWelcomeOpen(true)
-    else setAdminWelcomeOpen(false)
+    if (!authed) return
+    queueMicrotask(() => {
+      setAdminWelcomeOpen(welcomeAutoshow)
+    })
   }, [authed, welcomeAutoshow])
 
   const handleAdminWelcomeClose = useCallback(() => {

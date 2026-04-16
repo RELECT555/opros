@@ -13,6 +13,12 @@ import type {
 } from './supabase'
 import { supabase } from './supabase'
 import { ADMIN_JWT_STORAGE_KEY, clearAdminAuthenticated, markAdminAuthenticated } from './adminSession'
+import { API_BASE_URL } from './apiBaseUrl'
+import {
+  CLIENT_ONLY_TOKEN,
+  passwordMatchesClientOnly,
+  readClientOnlyMe,
+} from './clientOnlyAdmin'
 
 export type { Survey, SurveyConfigData, SurveyRecord, TokenRecord, ResponseStatus }
 export { PAGE_SIZE } from './supabase'
@@ -21,12 +27,12 @@ export type AuthMe =
   | { auth: 'password_admin' }
   | { auth: 'oauth'; user: { id: string; email: string; is_global_admin: boolean } }
 
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3001'
-
 async function authHeaders(): Promise<Record<string, string>> {
   try {
     const admin = localStorage.getItem(ADMIN_JWT_STORAGE_KEY)
-    if (admin) return { Authorization: `Bearer ${admin}` }
+    if (admin && admin !== CLIENT_ONLY_TOKEN) {
+      return { Authorization: `Bearer ${admin}` }
+    }
   } catch {
     /* ignore */
   }
@@ -36,7 +42,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 async function _fetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -56,18 +62,60 @@ async function _fetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 // ── Auth ────────────────────────────────────────────────────
 
+async function attemptSilentLogin(password: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    })
+    const text = await res.text()
+    let body: { error?: string; token?: string }
+    try {
+      body = text ? (JSON.parse(text) as { error?: string; token?: string }) : {}
+    } catch {
+      return null
+    }
+    if (!res.ok || typeof body.token !== 'string' || !body.token) return null
+    return body.token
+  } catch {
+    return null
+  }
+}
+
 export async function login(password: string): Promise<string> {
-  /* Без Bearer: старый токен не должен уходить на /auth/login */
-  const res = await fetch(`${API_URL}/api/auth/login`, {
+  if (passwordMatchesClientOnly(password)) {
+    const jwt = await attemptSilentLogin(password)
+    if (jwt) {
+      localStorage.setItem(ADMIN_JWT_STORAGE_KEY, jwt)
+      markAdminAuthenticated()
+      return jwt
+    }
+    localStorage.setItem(ADMIN_JWT_STORAGE_KEY, CLIENT_ONLY_TOKEN)
+    markAdminAuthenticated()
+    return CLIENT_ONLY_TOKEN
+  }
+  const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
   })
-  const body = await res.json().catch(() => ({ error: res.statusText }))
+  const text = await res.text()
+  let body: { error?: string; token?: string }
+  try {
+    body = text ? (JSON.parse(text) as { error?: string; token?: string }) : {}
+  } catch {
+    if (!res.ok) {
+      throw new Error(res.status === 502 || res.status === 503 || res.status === 504
+        ? `HTTP ${res.status}`
+        : 'Invalid response from server (expected JSON)')
+    }
+    throw new Error('Invalid response from server (expected JSON)')
+  }
   if (!res.ok) {
     throw new Error(typeof body.error === 'string' ? body.error : `HTTP ${res.status}`)
   }
-  const token = (body as { token?: string }).token
+  const token = body.token
   if (!token) throw new Error('Сервер не вернул токен')
   localStorage.setItem(ADMIN_JWT_STORAGE_KEY, token)
   markAdminAuthenticated()
@@ -75,6 +123,8 @@ export async function login(password: string): Promise<string> {
 }
 
 export async function fetchMe(): Promise<AuthMe | null> {
+  const local = readClientOnlyMe()
+  if (local) return local
   try {
     return await _fetch<AuthMe>('/api/auth/me')
   } catch {
@@ -84,17 +134,30 @@ export async function fetchMe(): Promise<AuthMe | null> {
 
 /** Как fetchMe, но с текстом ошибки — после login для диагностики. */
 export async function fetchMeOrThrow(): Promise<AuthMe> {
-  const res = await fetch(`${API_URL}/api/auth/me`, {
+  const local = readClientOnlyMe()
+  if (local) return local
+  const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
     headers: {
       'Content-Type': 'application/json',
       ...(await authHeaders()),
     },
   })
+  const text = await res.text()
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(typeof body.error === 'string' ? body.error : `HTTP ${res.status}`)
+    let errMsg = `HTTP ${res.status}`
+    try {
+      const body = text ? (JSON.parse(text) as { error?: string }) : {}
+      if (typeof body.error === 'string') errMsg = body.error
+    } catch {
+      /* keep errMsg */
+    }
+    throw new Error(errMsg)
   }
-  return res.json() as Promise<AuthMe>
+  try {
+    return JSON.parse(text) as AuthMe
+  } catch {
+    throw new Error('Invalid response from server (expected JSON)')
+  }
 }
 
 export async function checkAuth(): Promise<boolean> {
@@ -187,7 +250,7 @@ export async function uploadSurveyLogo(surveyId: number, file: File): Promise<st
   const form = new FormData()
   form.append('file', file)
 
-  const res = await fetch(`${API_URL}/api/admin/uploads/logo?survey_id=${surveyId}`, {
+  const res = await fetch(`${API_BASE_URL}/api/admin/uploads/logo?survey_id=${surveyId}`, {
     method: 'POST',
     headers: await authHeaders(),
     body: form,
