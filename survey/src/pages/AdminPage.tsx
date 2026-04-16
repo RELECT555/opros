@@ -74,7 +74,13 @@ export default function AdminPage() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+      let session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'] = null
+      try {
+        const resp = await supabase.auth.getSession()
+        session = resp.data.session
+      } catch {
+        /* Safari/WebKit may throw on corrupted session storage */
+      }
       if (cancelled) return
       if (session?.access_token) {
         const me = await fetchMe()

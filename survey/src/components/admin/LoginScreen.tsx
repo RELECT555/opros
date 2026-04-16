@@ -14,7 +14,8 @@ function isNetworkFetchFailure(msg: string): boolean {
     m.includes('load failed') ||
     m.includes('network request failed') ||
     m.includes('the internet connection appears to be offline') ||
-    m.includes('connection was lost')
+    m.includes('connection was lost') ||
+    m.includes('did not match the expected pattern')
   )
 }
 
@@ -61,7 +62,7 @@ export function LoginScreen({
       } else if (isNetworkFetchFailure(msg)) {
         if (import.meta.env.PROD) {
           setErr(
-            `Не удалось связаться с API (${API_BASE_URL || 'VITE_API_URL не задан'}). Укажите при сборке VITE_API_URL — полный HTTPS-адрес отдельного сервера API (без /api). На API в FRONTEND_URL задайте URL этого сайта (CORS).`,
+            `Не удалось связаться с API (${API_BASE_URL || 'same origin'}). Убедитесь, что API доступен, VITE_API_URL при сборке указывает на его адрес (без /api), а на API в FRONTEND_URL — URL этого сайта (CORS).`,
           )
         } else {
           setErr(

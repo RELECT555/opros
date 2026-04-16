@@ -44,36 +44,28 @@ function resolvePublicBase(): string {
 export const API_BASE_URL = resolvePublicBase()
 
 /**
- * Non-null in production when VITE_API_URL is missing, invalid, or localhost.
- * API is always a separate origin from the static site; empty base would hit wrong host.
- * Bad strings also make Safari throw: "The string did not match the expected pattern."
+ * Non-null only when VITE_API_URL is explicitly set but broken (not a valid URL, or localhost in prod).
+ * Empty VITE_API_URL is fine — requests will go to same origin (Vercel rewrites / proxy).
  */
 export function productionApiUrlWarning(): string | null {
   if (!import.meta.env.PROD) return null
   const v = raw?.trim()
-  if (!v) {
-    return (
-      'Задайте при сборке фронта VITE_API_URL — полный HTTPS-адрес отдельного сервера API (корень, без /api), затем пересоберите. Сайт и API на разных хостах: без этого запросы уйдут не туда.'
-    )
-  }
+  if (!v) return null
   const base = sanitizeApiBase(v)
   if (!isValidHttpUrlBase(base)) {
     return (
-      'VITE_API_URL не является корректным URL: полный адрес с https://, без пробелов и кавычек ' +
-      '(иначе Safari может показать «The string did not match the expected pattern»). Пример: https://api.example.com'
+      'VITE_API_URL не является корректным URL: полный адрес с https://, без пробелов и кавычек. Пример: https://api.example.com'
     )
   }
   try {
     const u = new URL(base)
     if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') {
       return (
-        'В VITE_API_URL для продакшена указан localhost — укажите публичный HTTPS-адрес отдельного бэкенда в переменных сборки и пересоберите фронт.'
+        'В VITE_API_URL для продакшена указан localhost — укажите публичный HTTPS-адрес.'
       )
     }
   } catch {
-    return (
-      'VITE_API_URL не удаётся разобрать как URL. Одна строка https://… без лишних символов.'
-    )
+    return 'VITE_API_URL не удаётся разобрать как URL.'
   }
   return null
 }

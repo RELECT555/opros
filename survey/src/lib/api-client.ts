@@ -36,9 +36,14 @@ async function authHeaders(): Promise<Record<string, string>> {
   } catch {
     /* ignore */
   }
-  const { data: { session } } = await supabase.auth.getSession()
-  const t = session?.access_token
-  return t ? { Authorization: `Bearer ${t}` } : {}
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const t = session?.access_token
+    if (t) return { Authorization: `Bearer ${t}` }
+  } catch {
+    /* Safari/WebKit may throw here (e.g. corrupted session in storage) */
+  }
+  return {}
 }
 
 async function _fetch<T>(path: string, init?: RequestInit): Promise<T> {
