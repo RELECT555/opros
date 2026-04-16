@@ -335,7 +335,7 @@ export async function uploadSurveyLogo(surveyId: number, file: File): Promise<st
   return data.publicUrl
 }
 
-export async function updateSurveyMeta(id: number, meta: { title?: string; description?: string; is_active?: boolean }): Promise<void> {
+export async function updateSurveyMeta(id: number, meta: { slug?: string; title?: string; description?: string; is_active?: boolean }): Promise<void> {
   const { error } = await supabase
     .from('surveys')
     .update(meta)
