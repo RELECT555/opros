@@ -85,11 +85,15 @@ export default function AdminPage() {
           setAuthed(true)
         } else {
           setAuthError(
-            `OAuth-сессия есть (Supabase), но API-сервер (${API_BASE_URL}) не отвечает или вернул ошибку. ` +
-            `Убедитесь: 1) server запущен (npm run dev в папке server); ` +
-            `2) в server/.env заданы SUPABASE_JWT_SECRET (из Supabase Dashboard → Settings → API → JWT Secret) ` +
-            `и ADMIN_PASSWORD; ` +
-            `3) VITE_API_URL в survey/.env совпадает с адресом server.`,
+            import.meta.env.PROD
+              ? `OAuth-сессия есть (Supabase), но отдельный API-сервер не отвечает или вернул ошибку. ` +
+                `Проверьте: 1) при сборке фронта VITE_API_URL указывает на корень вашего API (https://…, без /api); ` +
+                `2) на сервере API в .env заданы SUPABASE_JWT_SECRET (Supabase → Settings → API → JWT Secret) и ADMIN_PASSWORD; ` +
+                `3) на API в FRONTEND_URL указан URL этого сайта (CORS).`
+              : `OAuth-сессия есть (Supabase), но API-сервер (${API_BASE_URL}) не отвечает или вернул ошибку. ` +
+                `Убедитесь: 1) server запущен (npm run dev в папке server); ` +
+                `2) в server/.env заданы SUPABASE_JWT_SECRET и ADMIN_PASSWORD; ` +
+                `3) VITE_API_URL в survey/.env совпадает с адресом server.`,
           )
         }
         return
@@ -118,8 +122,11 @@ export default function AdminPage() {
           setAuthed(true)
         } else {
           setAuthError(
-            `OAuth OK, но API-сервер (${API_BASE_URL}) недоступен. ` +
-            `Запустите server (npm run dev) и убедитесь, что в server/.env задан SUPABASE_JWT_SECRET.`,
+            import.meta.env.PROD
+              ? `OAuth OK, но отдельный API-сервер недоступен. Проверьте VITE_API_URL при сборке фронта, ` +
+                `SUPABASE_JWT_SECRET и ADMIN_PASSWORD на API, FRONTEND_URL на API для CORS.`
+              : `OAuth OK, но API-сервер (${API_BASE_URL}) недоступен. ` +
+                `Запустите server (npm run dev) и убедитесь, что в server/.env задан SUPABASE_JWT_SECRET.`,
           )
         }
       }

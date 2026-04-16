@@ -492,8 +492,9 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
                       <div className="qed-media-fields">
                         <input
                           className="qed-field-input"
-                          type="url"
+                          type="text"
                           inputMode="url"
+                          autoComplete="off"
                           placeholder={
                             q.media.kind === 'image'
                               ? 'https://… (ссылка на изображение)'

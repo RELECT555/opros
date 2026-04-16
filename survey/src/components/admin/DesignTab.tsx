@@ -335,7 +335,9 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
                   <input
                     id="dsg-logo"
                     className="dsg-input"
-                    type="url"
+                    type="text"
+                    inputMode="url"
+                    autoComplete="off"
                     placeholder="https://example.com/logo.png"
                     value={d.logo_url ?? ''}
                     onChange={e => patchDesign({ logo_url: e.target.value })}

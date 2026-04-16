@@ -297,10 +297,13 @@ export function LiveQuestionEditorModal({ open, question, questionIndex, onClose
                       <>
                         <input
                           className="lqe-input lqe-input--mt"
-                          type="url"
+                          type="text"
+                          inputMode="url"
+                          autoComplete="off"
                           placeholder="https://…"
                           value={draft.media.url}
                           onChange={e => setDraft(d => ({ ...d, media: { ...d.media!, url: e.target.value } }))}
+                          spellCheck={false}
                         />
                         <input
                           className="lqe-input"

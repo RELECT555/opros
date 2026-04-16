@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../lib/supabase'
 import { login, fetchMeOrThrow } from '../../lib/api-client'
-import { API_BASE_URL, isProductionApiMisconfigured } from '../../lib/apiBaseUrl'
+import { API_BASE_URL, productionApiUrlWarning } from '../../lib/apiBaseUrl'
 
 const ADMIN_ORIGIN = `${window.location.origin}/admin`
 
@@ -61,7 +61,7 @@ export function LoginScreen({
       } else if (isNetworkFetchFailure(msg)) {
         if (import.meta.env.PROD) {
           setErr(
-            `Не удалось связаться с API (${API_BASE_URL || 'same origin'}). Разверните server в интернете, в Vercel задайте VITE_API_URL на его HTTPS-адрес (без /api) и пересоберите. На server в FRONTEND_URL укажите URL этого сайта (CORS).`,
+            `Не удалось связаться с API (${API_BASE_URL || 'VITE_API_URL не задан'}). Укажите при сборке VITE_API_URL — полный HTTPS-адрес отдельного сервера API (без /api). На API в FRONTEND_URL задайте URL этого сайта (CORS).`,
           )
         } else {
           setErr(
@@ -70,7 +70,7 @@ export function LoginScreen({
         }
       } else if (isUpstreamOrApiMisconfig(msg)) {
         setErr(
-          'Шлюз вернул 502/503 или ответ не JSON: публичный API не настроен или недоступен. В Vercel → Environment Variables (Production) задайте VITE_API_URL = https://… (корень вашего server, без /api), сделайте Redeploy. На server в FRONTEND_URL укажите URL этого сайта. Убедитесь, что API в интернете отвечает по HTTPS.',
+          'Шлюз вернул 502/503 или ответ не JSON: отдельный API недоступен или отвечает не JSON. Проверьте VITE_API_URL при сборке (корень API, без /api), пересборку фронта и что API в сети отвечает по HTTPS; на API в FRONTEND_URL — URL этого сайта.',
         )
       } else {
         setErr(msg)
@@ -107,6 +107,8 @@ export function LoginScreen({
     }
   }
 
+  const apiUrlWarn = productionApiUrlWarning()
+
   return (
     <div className="ls-root">
       <div className="ls-glow ls-glow--1" />
@@ -114,10 +116,9 @@ export function LoginScreen({
       <div className="ls-noise" />
 
       <div className="ls-login-stack">
-      {isProductionApiMisconfigured() && (
+      {apiUrlWarn && (
         <div className="ls-deploy-banner" role="alert">
-          В <code className="ls-deploy-code">VITE_API_URL</code> для продакшена указан localhost — задайте
-          публичный HTTPS-адрес API в Vercel (Environment Variables) и пересоберите проект. См. survey/README.
+          <code className="ls-deploy-code">VITE_API_URL</code>: {apiUrlWarn}
         </div>
       )}
       <motion.div
