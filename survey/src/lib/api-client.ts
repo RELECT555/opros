@@ -5,6 +5,8 @@ import type {
   TokenRecord,
   ResponseStatus,
   GenericSurveyResponse,
+  ManualLeadRecord,
+  LeadProjectRecord,
 } from './supabase'
 import {
   supabase,
@@ -21,6 +23,10 @@ import {
   updateResponseStatus as db_updateResponseStatus,
   updateManagerNote   as db_updateManagerNote,
   saveSurveyResponseGeneric as db_saveSurveyResponseGeneric,
+  getManualLeadsPaged as db_getManualLeadsPaged,
+  createManualLead    as db_createManualLead,
+  updateManualLead    as db_updateManualLead,
+  deleteManualLead    as db_deleteManualLead,
   getTokens           as db_getTokens,
   createTokens        as db_createTokens,
   deleteToken         as db_deleteToken,
@@ -40,7 +46,7 @@ import {
   readClientOnlyMe,
 } from './clientOnlyAdmin'
 
-export type { Survey, SurveyConfigData, SurveyRecord, TokenRecord, ResponseStatus }
+export type { Survey, SurveyConfigData, SurveyRecord, TokenRecord, ResponseStatus, ManualLeadRecord, LeadProjectRecord }
 export { PAGE_SIZE } from './supabase'
 
 export type AuthMe =
@@ -368,6 +374,79 @@ export async function updateManagerNote(id: number, note: string): Promise<void>
     method: 'PATCH',
     body: JSON.stringify({ note }),
   })
+}
+
+export async function getLeadProjects(): Promise<LeadProjectRecord[]> {
+  return _fetch('/api/admin/lead-projects')
+}
+
+export async function createLeadProject(input: { name: string; description?: string }): Promise<LeadProjectRecord> {
+  return _fetch('/api/admin/lead-projects', { method: 'POST', body: JSON.stringify(input) })
+}
+
+export async function updateLeadProject(
+  id: number,
+  patch: { name?: string; description?: string | null },
+): Promise<LeadProjectRecord> {
+  return _fetch(`/api/admin/lead-projects/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
+}
+
+export async function deleteLeadProject(id: number): Promise<void> {
+  await _fetch(`/api/admin/lead-projects/${id}`, { method: 'DELETE' })
+}
+
+export async function getManualLeadsPaged(
+  page: number,
+  pageSize = 20,
+  status?: ResponseStatus | 'all',
+  projectId?: number,
+): Promise<{ data: ManualLeadRecord[]; total: number }> {
+  if (_direct()) return db_getManualLeadsPaged(page, pageSize, status)
+  const params = new URLSearchParams({ page: String(page) })
+  if (status && status !== 'all') params.set('status', status)
+  if (projectId !== undefined) params.set('project_id', String(projectId))
+  return _fetch(`/api/admin/manual-leads?${params}`)
+}
+
+export async function createManualLead(input: {
+  full_name: string
+  project_id?: number
+  email?: string
+  organization?: string
+  phone?: string
+  comment?: string
+  status?: ResponseStatus
+  manager_note?: string
+}): Promise<ManualLeadRecord> {
+  if (_direct()) return db_createManualLead(input)
+  return _fetch('/api/admin/manual-leads', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export async function updateManualLead(
+  id: number,
+  patch: Partial<{
+    full_name: string
+    email: string
+    organization: string
+    phone: string
+    comment: string | null
+    status: ResponseStatus
+    manager_note: string | null
+  }>,
+): Promise<ManualLeadRecord> {
+  if (_direct()) return db_updateManualLead(id, patch)
+  return _fetch(`/api/admin/manual-leads/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+}
+
+export async function deleteManualLead(id: number): Promise<void> {
+  if (_direct()) return db_deleteManualLead(id)
+  await _fetch(`/api/admin/manual-leads/${id}`, { method: 'DELETE' })
 }
 
 export async function saveSurveyResponseGeneric(data: GenericSurveyResponse): Promise<void> {

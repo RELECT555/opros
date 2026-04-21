@@ -97,7 +97,8 @@ export function DynamicSurveyForm({
 
   const canvasMode = Array.isArray(canvasContentPages) && canvasContentPages.length > 0
   const contentPageCount = canvasMode ? canvasContentPages!.length : questions.length
-  const totalSteps = contentPageCount + 1
+  const contactsDisabled = contactsBlock.disabled
+  const totalSteps = contentPageCount + (contactsDisabled ? 0 : 1)
 
   const [step, setStep] = useState(0)
   const [dir, setDir] = useState(1)
@@ -151,11 +152,17 @@ export function DynamicSurveyForm({
 
   const canGoNext = canvasMode
     ? (step < contentPageCount ? canvasPageDone(canvasContentPages![step]!) : contactsDone)
-    : (step < questions.length ? isAnswered(questions[step]!) : contactsDone)
+    : (contactsDisabled
+        ? isAnswered(questions[step]!)
+        : (step < questions.length ? isAnswered(questions[step]!) : contactsDone))
 
   const steps = canvasMode
-    ? [...canvasContentPages!.map(p => ({ done: canvasPageDone(p) })), { done: contactsDone }]
-    : [...questions.map(q => ({ done: isAnswered(q) })), { done: contactsDone }]
+    ? (contactsDisabled
+        ? canvasContentPages!.map(p => ({ done: canvasPageDone(p) }))
+        : [...canvasContentPages!.map(p => ({ done: canvasPageDone(p) })), { done: contactsDone }])
+    : (contactsDisabled
+        ? questions.map(q => ({ done: isAnswered(q) }))
+        : [...questions.map(q => ({ done: isAnswered(q) })), { done: contactsDone }])
 
   function setConsentChecked(id: string, checked: boolean) {
     setForm({ ...form, consentChecks: { ...form.consentChecks, [id]: checked } })
@@ -624,7 +631,7 @@ export function DynamicSurveyForm({
                     />
                   </div>
                 )
-              ) : (
+              ) : contactsDisabled ? null : (
                 <ContactsCard key="contacts" block={contactsBlock} form={form} setForm={setForm} questionsCount={questions.length} token={token} dir={dir} />
               )}
             </AnimatePresence>
@@ -633,10 +640,12 @@ export function DynamicSurveyForm({
           <motion.div className={`sf-nav${isLastStep ? ' sf-nav--final' : ''}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.15, ease: easeOut }}>
             {isLastStep ? (
               <>
-                <div className="sf-nav-final-consent">
-                  {consentCards}
-                  {status === 'error' && <p className="err-msg">{errorMsg}</p>}
-                </div>
+                {!contactsDisabled && (
+                  <div className="sf-nav-final-consent">
+                    {consentCards}
+                  </div>
+                )}
+                {status === 'error' && <p className="err-msg">{errorMsg}</p>}
                 {submitButtonEl}
                 <button type="button" className="sf-nav-btn sf-nav-btn--back" onClick={goPrev} disabled={step === 0}>
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -680,9 +689,11 @@ export function DynamicSurveyForm({
               />
             </div>
           ))}
-          <ContactsCard block={contactsBlock} form={form} setForm={setForm} questionsCount={questions.length} token={token} dir={0} />
+          {!contactsDisabled && (
+            <ContactsCard block={contactsBlock} form={form} setForm={setForm} questionsCount={questions.length} token={token} dir={0} />
+          )}
           <div className="sf-nav-submit-wrap">
-            {consentCards}
+            {!contactsDisabled && consentCards}
             {status === 'error' && <p className="err-msg">{errorMsg}</p>}
             {submitButtonEl}
           </div>

@@ -151,3 +151,27 @@ export type TokenRecord = {
   opened_at: string | null
   used_at: string | null
 }
+
+/** Проект — контейнер для ручных заявок */
+export type LeadProjectRecord = {
+  id: number
+  created_at: string
+  updated_at: string
+  name: string
+  description: string | null
+}
+
+/** Ручные заявки (демо-стенд / CRM), без привязки к опросу */
+export type ManualLeadRecord = {
+  id: number
+  created_at: string
+  updated_at: string
+  project_id: number | null
+  full_name: string
+  email: string
+  organization: string
+  phone: string
+  comment: string | null
+  status: ResponseStatus
+  manager_note: string | null
+}

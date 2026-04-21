@@ -21,6 +21,7 @@ export type ResolvedContactField = {
 }
 
 export type ResolvedContactsBlock = {
+  disabled: boolean
   stepPillLabel: string
   stepPillDoneLabel: string
   title: string
@@ -109,6 +110,7 @@ export function mergeContactsBlockConfig(raw?: ContactsBlockConfig): ResolvedCon
     raw?.consents !== undefined ? raw.consents.map(normalizeConsent) : DEFAULT_CONSENTS.map(normalizeConsent)
 
   return {
+    disabled: raw?.disabled === true,
     stepPillLabel: pickStr(raw?.step_pill_label) || 'Контакты',
     stepPillDoneLabel: pickStr(raw?.step_pill_done_label) || 'Готово',
     title: pickStr(raw?.title) || 'Оставьте контакты',
@@ -162,6 +164,7 @@ function simpleEmailOk(v: string): boolean {
 }
 
 export function contactsStepComplete(form: ContactsFormSlice, block: ResolvedContactsBlock): boolean {
+  if (block.disabled) return true
   const { fields } = block
   const keys = ['name', 'phone', 'email', 'comment'] as const
   if (!keys.some(k => fields[k].enabled)) return true
@@ -188,6 +191,7 @@ export function contactsStepComplete(form: ContactsFormSlice, block: ResolvedCon
 }
 
 export function allRequiredConsentsChecked(form: ContactsFormSlice, block: ResolvedContactsBlock): boolean {
+  if (block.disabled) return true
   for (const c of block.consents) {
     if (c.required && !form.consentChecks[c.id]) return false
   }

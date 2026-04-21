@@ -685,8 +685,23 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
             <p className="qed-welcome-label">Блок контактов</p>
             <p className="qed-welcome-desc">Финальный шаг опроса (после вопросов): поля, тексты и согласия</p>
           </div>
+          <label className={`qed-contacts-disable-toggle${config.contacts_block?.disabled ? ' qed-contacts-disable-toggle--on' : ''}`}>
+            <span className={`qed-contacts-toggle-sw${config.contacts_block?.disabled ? ' qed-contacts-toggle-sw--on' : ''}`}>
+              <span className="qed-contacts-toggle-knob" />
+            </span>
+            <input
+              type="checkbox"
+              checked={config.contacts_block?.disabled === true}
+              onChange={e =>
+                update(c => ({ ...c, contacts_block: { ...c.contacts_block, disabled: e.target.checked } }))
+              }
+            />
+            <span className="qed-contacts-toggle-label">
+              {config.contacts_block?.disabled ? 'Блок отключён' : 'Блок включён'}
+            </span>
+          </label>
         </div>
-        <div className="qed-welcome-fields qed-contacts-admin-fields">
+        <div className={`qed-welcome-fields qed-contacts-admin-fields${config.contacts_block?.disabled ? ' qed-contacts-admin-fields--hidden' : ''}`} aria-hidden={config.contacts_block?.disabled}>
           <div className="qed-field-row2">
             <QField
               label="Заголовок блока"

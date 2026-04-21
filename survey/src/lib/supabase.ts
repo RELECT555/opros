@@ -155,6 +155,8 @@ export type ContactsFieldPartial = {
 
 /** Настройка финального блока «контакты + согласия» (редактируется в админке). */
 export type ContactsBlockConfig = {
+  /** Если true — блок контактов полностью отключён, опрос отправляется без шага контактов */
+  disabled?: boolean
   step_pill_label?: string
   step_pill_done_label?: string
   title?: string
@@ -247,6 +249,29 @@ export interface TokenRecord {
   created_at: string
   opened_at: string | null
   used_at: string | null
+}
+
+export interface LeadProjectRecord {
+  id: number
+  created_at: string
+  updated_at: string
+  name: string
+  description: string | null
+  lead_count?: number
+}
+
+export interface ManualLeadRecord {
+  id: number
+  created_at: string
+  updated_at: string
+  project_id: number | null
+  full_name: string
+  email: string
+  organization: string
+  phone: string
+  comment: string | null
+  status: ResponseStatus
+  manager_note: string | null
 }
 
 export const PAGE_SIZE = 20
@@ -539,5 +564,78 @@ export async function setGlobalTheme(theme: unknown): Promise<void> {
   const { error } = await supabase
     .from('survey_config')
     .upsert({ id: 2, config: theme })
+  if (error) throw error
+}
+
+// ── Manual leads (демо-стенд, только админка) ───────────────
+
+export async function getManualLeadsPaged(
+  page: number,
+  pageSize = PAGE_SIZE,
+  status?: ResponseStatus | 'all',
+): Promise<{ data: ManualLeadRecord[]; total: number }> {
+  const from = page * pageSize
+  const to = from + pageSize - 1
+  let q = supabase
+    .from('manual_leads')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, to)
+  if (status && status !== 'all') q = q.eq('status', status)
+  const { data, error, count } = await q
+  if (error) throw error
+  return { data: data as ManualLeadRecord[], total: count ?? 0 }
+}
+
+export async function createManualLead(input: {
+  full_name: string
+  email?: string
+  organization?: string
+  phone?: string
+  comment?: string
+  status?: ResponseStatus
+  manager_note?: string
+}): Promise<ManualLeadRecord> {
+  const { data, error } = await supabase
+    .from('manual_leads')
+    .insert([{
+      full_name: input.full_name,
+      email: input.email ?? '',
+      organization: input.organization ?? '',
+      phone: input.phone ?? '',
+      comment: input.comment?.trim() || null,
+      status: input.status ?? 'new',
+      manager_note: input.manager_note?.trim() || null,
+    }])
+    .select()
+    .single()
+  if (error) throw error
+  return data as ManualLeadRecord
+}
+
+export async function updateManualLead(
+  id: number,
+  patch: Partial<{
+    full_name: string
+    email: string
+    organization: string
+    phone: string
+    comment: string | null
+    status: ResponseStatus
+    manager_note: string | null
+  }>,
+): Promise<ManualLeadRecord> {
+  const { data, error } = await supabase
+    .from('manual_leads')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data as ManualLeadRecord
+}
+
+export async function deleteManualLead(id: number): Promise<void> {
+  const { error } = await supabase.from('manual_leads').delete().eq('id', id)
   if (error) throw error
 }

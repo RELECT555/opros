@@ -34,7 +34,7 @@ function StatusBadge({ status, size = 'sm' }: { status: ResponseStatus; size?: '
     </span>
   )
 }
-const STATUS_ORDER: ResponseStatus[] = ['new', 'called', 'in_progress', 'closed']
+export const STATUS_ORDER: ResponseStatus[] = ['new', 'called', 'in_progress', 'closed']
 
 /** Только высота: без opacity, чтобы не дёргать композитинг соседних карточек. */
 const responseExpandTransition = {

@@ -14,6 +14,8 @@ import { responsesRoutes } from './routes/responses.js'
 import { tokensRoutes }    from './routes/tokens.js'
 import { configRoutes }    from './routes/config.js'
 import { uploadsRoutes }   from './routes/uploads.js'
+import { manualLeadsRoutes } from './routes/manualLeads.js'
+import { leadProjectsRoutes } from './routes/leadProjects.js'
 import { authRoutes }      from './routes/auth.js'
 import { setAuthApp }      from './middleware/auth.js'
 import {
@@ -122,6 +124,8 @@ await app.register(async (api) => {
   await api.register(tokensRoutes)
   await api.register(configRoutes)
   await api.register(uploadsRoutes)
+  await api.register(manualLeadsRoutes)
+  await api.register(leadProjectsRoutes)
 }, { prefix: '/api' })
 
 // ── Глобальный обработчик ошибок (не утекают стектрейсы) ──
