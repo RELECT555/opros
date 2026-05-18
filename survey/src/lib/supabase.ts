@@ -13,6 +13,11 @@ if (!url || !key) {
 
 export const supabase = createClient(url ?? 'https://placeholder.supabase.co', key ?? 'placeholder')
 
+/** false, если в момент сборки не были заданы VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY (типичная причина «ничего не грузится» на Vercel). */
+export function isViteSupabaseConfigured(): boolean {
+  return Boolean(url?.trim() && key?.trim())
+}
+
 // ── Survey types ────────────────────────────────────────────
 
 export type QuestionMediaKind = 'image' | 'video' | 'embed'

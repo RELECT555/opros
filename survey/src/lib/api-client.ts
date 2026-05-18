@@ -247,9 +247,30 @@ export async function getSurveys(): Promise<Survey[]> {
   }
 }
 
-/** Публичная страница опроса всегда читает из Supabase (RLS разрешает select). Не ходим в API: иначе при холодном/медленном бэкенде или лимитах запрос «висит», а fallback срабатывает только после ошибки, не после таймаута. */
+/**
+ * Публичная страница опроса: сначала Supabase (быстро, без бэкенда).
+ * Если с клиента Supabase недоступен (нет VITE_* на билде, RLS, сеть) или строка не найдена —
+ * при наличии VITE_API_URL пробуем GET /api/surveys/:slug.
+ */
 export async function getSurveyBySlug(slug: string): Promise<Survey | null> {
-  return db_getSurveyBySlug(slug)
+  const s = slug?.trim()
+  if (!s) return null
+
+  let fromSb: Survey | null = null
+  try {
+    fromSb = await db_getSurveyBySlug(s)
+  } catch (e) {
+    console.warn('[Askly] getSurveyBySlug: Supabase', e)
+  }
+  if (fromSb) return fromSb
+
+  if (!API_BASE_URL) return null
+  try {
+    return await _fetch(`/api/surveys/${encodeURIComponent(s)}`)
+  } catch (e) {
+    console.warn('[Askly] getSurveyBySlug: API', e)
+    return null
+  }
 }
 
 export async function getSurveyById(id: number): Promise<Survey | null> {

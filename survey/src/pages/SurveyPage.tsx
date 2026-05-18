@@ -4,6 +4,8 @@ import { AnimatePresence } from 'framer-motion'
 import { getSurveyBySlug, saveSurveyResponseGeneric, markTokenOpened, updateSurveyConfig } from '../lib/api-client'
 import { isAdminAuthenticated } from '../lib/adminSession'
 import type { Survey, SurveyDesign, SurveyQuestion, SurveyConfigData } from '../lib/supabase'
+import { isViteSupabaseConfigured } from '../lib/supabase'
+import { API_BASE_URL } from '../lib/apiBaseUrl'
 import { mergeSurveyDesign, buildSurveyDesignStylesheet } from '../lib/surveyDesign'
 import {
   getContentPages,
@@ -124,9 +126,21 @@ export default function SurveyPage({ slug }: Props) {
   }
 
   useEffect(() => {
-    getSurveyBySlug(slug)
+    if (!slug?.trim()) {
+      setLoadError('Некорректная ссылка на опрос')
+      return
+    }
+    setLoadError('')
+    getSurveyBySlug(slug.trim())
       .then(s => {
-        if (!s) { setLoadError('Опрос не найден'); return }
+        if (!s) {
+          const hint =
+            !isViteSupabaseConfigured() && !API_BASE_URL
+              ? ' Проверьте в Vercel переменные VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY (и пересборку) или задайте VITE_API_URL на бэкенд.'
+              : ''
+          setLoadError(`Опрос не найден${hint}`)
+          return
+        }
         setSurvey(s)
         setForm(emptyFormData(orderedQuestionsFromCanvas(s.config), s.config.contacts_block))
         if (token) markTokenOpened(token)
