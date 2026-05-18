@@ -63,6 +63,15 @@ function _direct(): boolean {
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
+  // Prefer OAuth session token from Supabase. A stale password-admin JWT in localStorage
+  // must not shadow a valid OAuth session after redirect back from provider.
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const t = session?.access_token
+    if (t) return { Authorization: `Bearer ${t}` }
+  } catch {
+    /* Safari/WebKit may throw here */
+  }
   try {
     const admin = localStorage.getItem(ADMIN_JWT_STORAGE_KEY)
     if (admin && admin !== CLIENT_ONLY_TOKEN) {
@@ -70,13 +79,6 @@ async function authHeaders(): Promise<Record<string, string>> {
     }
   } catch {
     /* ignore */
-  }
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-    const t = session?.access_token
-    if (t) return { Authorization: `Bearer ${t}` }
-  } catch {
-    /* Safari/WebKit may throw here */
   }
   return {}
 }
