@@ -234,7 +234,9 @@ export async function getSurveyBySlug(slug: string): Promise<Survey | null> {
   try {
     return await _fetch(`/api/surveys/${encodeURIComponent(slug)}`)
   } catch {
-    return null
+    // Production safety net: if API route is misconfigured on static hosting,
+    // read public survey directly from Supabase instead of showing "not found".
+    return db_getSurveyBySlug(slug)
   }
 }
 
@@ -453,21 +455,25 @@ export async function deleteManualLead(id: number): Promise<void> {
 
 export async function saveSurveyResponseGeneric(data: GenericSurveyResponse): Promise<void> {
   if (_direct()) return db_saveSurveyResponseGeneric(data)
-  await _fetch('/api/responses', {
-    method: 'POST',
-    body: JSON.stringify({
-      survey_id: data.surveyId,
-      answers: data.answers,
-      name: data.name,
-      phone: data.phone,
-      email: data.email,
-      comment: data.comment,
-      token: data.token,
-      crm_purpose: [],
-      crm_used_before: [],
-      current_crm: '',
-    }),
-  })
+  try {
+    await _fetch('/api/responses', {
+      method: 'POST',
+      body: JSON.stringify({
+        survey_id: data.surveyId,
+        answers: data.answers,
+        name: data.name,
+        phone: data.phone,
+        email: data.email,
+        comment: data.comment,
+        token: data.token,
+        crm_purpose: [],
+        crm_used_before: [],
+        current_crm: '',
+      }),
+    })
+  } catch {
+    await db_saveSurveyResponseGeneric(data)
+  }
 }
 
 // ── Tokens ──────────────────────────────────────────────────
@@ -503,13 +509,17 @@ export async function resolveToken(token: string): Promise<string | null> {
     const data = await _fetch<{ email: string }>(`/api/tokens/${token}`)
     return data.email
   } catch {
-    return null
+    return db_resolveToken(token)
   }
 }
 
 export async function markTokenOpened(token: string): Promise<void> {
   if (_direct()) return db_markTokenOpened(token)
-  await _fetch(`/api/tokens/${token}/opened`, { method: 'PATCH' })
+  try {
+    await _fetch(`/api/tokens/${token}/opened`, { method: 'PATCH' })
+  } catch {
+    await db_markTokenOpened(token)
+  }
 }
 
 // ── Config (legacy) ─────────────────────────────────────────

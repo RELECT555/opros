@@ -16,6 +16,7 @@
  */
 
 import { ADMIN_JWT_STORAGE_KEY } from './adminSession'
+import { supabase } from './supabase'
 
 type WsEventType = 'response:new' | 'response:status' | 'survey:updated' | 'survey:created'
 
@@ -100,8 +101,8 @@ class WsClient {
   }
 
   /** Аутентификация для admin канала. Вызвать после connect(). */
-  authenticate(token?: string): void {
-    const t = token ?? localStorage.getItem(ADMIN_JWT_STORAGE_KEY)
+  async authenticate(token?: string): Promise<void> {
+    const t = token ?? await this._resolveAuthToken()
     if (!t || !this._ws || this._ws.readyState !== WebSocket.OPEN) return
     this._send({ type: 'auth', token: t })
   }
@@ -149,8 +150,7 @@ class WsClient {
       this._setStatus('connected')
       this._startPing()
 
-      const token = localStorage.getItem(ADMIN_JWT_STORAGE_KEY)
-      if (token) this.authenticate(token)
+      void this.authenticate()
 
       for (const ch of this._pendingChannels) {
         this._send({ type: 'subscribe', channel: ch })
@@ -226,6 +226,23 @@ class WsClient {
     if (this._reconnectTimer) {
       clearTimeout(this._reconnectTimer)
       this._reconnectTimer = null
+    }
+  }
+
+  private async _resolveAuthToken(): Promise<string | null> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const t = session?.access_token
+      if (t) return t
+    } catch {
+      /* Safari/WebKit may throw on session storage issues */
+    }
+
+    try {
+      const t = localStorage.getItem(ADMIN_JWT_STORAGE_KEY)
+      return t || null
+    } catch {
+      return null
     }
   }
 }
