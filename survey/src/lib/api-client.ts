@@ -229,15 +229,9 @@ export async function getSurveys(): Promise<Survey[]> {
   return _fetch('/api/admin/surveys')
 }
 
+/** Публичная страница опроса всегда читает из Supabase (RLS разрешает select). Не ходим в API: иначе при холодном/медленном бэкенде или лимитах запрос «висит», а fallback срабатывает только после ошибки, не после таймаута. */
 export async function getSurveyBySlug(slug: string): Promise<Survey | null> {
-  if (_direct()) return db_getSurveyBySlug(slug)
-  try {
-    return await _fetch(`/api/surveys/${encodeURIComponent(slug)}`)
-  } catch {
-    // Production safety net: if API route is misconfigured on static hosting,
-    // read public survey directly from Supabase instead of showing "not found".
-    return db_getSurveyBySlug(slug)
-  }
+  return db_getSurveyBySlug(slug)
 }
 
 export async function getSurveyById(id: number): Promise<Survey | null> {

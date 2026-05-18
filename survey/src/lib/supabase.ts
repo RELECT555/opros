@@ -293,9 +293,9 @@ export async function getSurveyBySlug(slug: string): Promise<Survey | null> {
     .select('*')
     .eq('slug', slug)
     .eq('is_active', true)
-    .single()
-  if (error || !data) return null
-  return data as Survey
+    .maybeSingle()
+  if (error) throw error
+  return data as Survey | null
 }
 
 export async function getSurveyById(id: number): Promise<Survey | null> {
