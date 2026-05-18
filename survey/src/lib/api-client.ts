@@ -84,14 +84,28 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 async function _fetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(await authHeaders()),
-      ...init?.headers,
-    },
-  })
+  const ctrl = new AbortController()
+  const timeoutMs = 7000
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      signal: ctrl.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(await authHeaders()),
+        ...init?.headers,
+      },
+    })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`API timeout after ${timeoutMs}ms`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }))
@@ -226,7 +240,11 @@ export async function logout(): Promise<void> {
 
 export async function getSurveys(): Promise<Survey[]> {
   if (_direct()) return db_getSurveys()
-  return _fetch('/api/admin/surveys')
+  try {
+    return await _fetch('/api/admin/surveys')
+  } catch {
+    return db_getSurveys()
+  }
 }
 
 /** Публичная страница опроса всегда читает из Supabase (RLS разрешает select). Не ходим в API: иначе при холодном/медленном бэкенде или лимитах запрос «висит», а fallback срабатывает только после ошибки, не после таймаута. */
@@ -239,7 +257,7 @@ export async function getSurveyById(id: number): Promise<Survey | null> {
   try {
     return await _fetch(`/api/admin/surveys/${id}`)
   } catch {
-    return null
+    return db_getSurveyById(id)
   }
 }
 
