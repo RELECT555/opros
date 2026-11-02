@@ -203,9 +203,8 @@ export function SettingsTab() {
   useEffect(() => {
     getGlobalTheme().then(remote => {
       if (remote) {
-        const t = remote as AdminThemeStored
         // If local matches remote preset, mark as published
-        if (t.preset === theme.preset && t.accent === theme.accent) setPublished(true)
+        if (remote.preset === theme.preset && remote.accent === theme.accent) setPublished(true)
       }
     }).catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps

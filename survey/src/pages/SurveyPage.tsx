@@ -28,7 +28,7 @@ function applySurveyDesign(d?: SurveyDesign) {
   }
   el.textContent = buildSurveyDesignStylesheet(d)
 }
-import { SparklesCore } from '../components/ui/Sparkles'
+import { SparklesCore } from '../components/ui/sparkles'
 import { DottedSurface } from '../components/ui/DottedSurface'
 import { WelcomeScreen } from '../components/survey/WelcomeScreen'
 import { AdminLinkWelcomeGate } from '../components/survey/AdminLinkWelcomeGate'
@@ -230,6 +230,7 @@ export default function SurveyPage({ slug }: Props) {
   }
 
   function handleReset() {
+    if (!survey) return
     setForm(emptyFormData(questions, survey.config.contacts_block))
     setStatus('idle')
     setScreen('welcome')

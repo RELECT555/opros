@@ -7,9 +7,9 @@ import { canAccessSurvey } from '../lib/access.js'
 import { isFullAccess } from '../types/auth.js'
 import { httpLog } from '../logger.js'
 
-const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'])
+const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
 const ALLOWED_MIME = new Set([
-  'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml',
+  'image/png', 'image/jpeg', 'image/webp', 'image/gif',
 ])
 const MAX_SIZE = 2 * 1024 * 1024
 
@@ -71,6 +71,21 @@ export async function uploadsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: 'Нет доступа' })
       }
 
+      if (process.env.OPROS_HOSTED === 'true') {
+        const path = `${surveyId}/${randomUUID()}${ext}`
+        const base = process.env.SUPABASE_URL!
+        const response = await fetch(`${base}/storage/v1/object/survey-logos/${path}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
+            'Content-Type': file.mimetype,
+          },
+          body: new Uint8Array(Buffer.concat(chunks)),
+          signal: AbortSignal.timeout(15000),
+        })
+        if (!response.ok) return reply.code(502).send({ error: 'Не удалось загрузить файл' })
+        return reply.send({ url: `${base}/storage/v1/object/public/survey-logos/${path}` })
+      }
       const dir = join(_uploadsDir(), 'logos', surveyId)
       await mkdir(dir, { recursive: true })
 

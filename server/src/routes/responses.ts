@@ -61,6 +61,23 @@ export async function responsesRoutes(app: FastifyInstance) {
     let row: SurveyRecord | null = null
     try {
       await client.query('begin')
+      const survey = await client.query<{ is_active: boolean }>(
+        'select is_active from surveys where id = $1 for share', [survey_id],
+      )
+      if (!survey.rows[0]?.is_active) {
+        await client.query('rollback')
+        return reply.code(404).send({ error: 'Опрос недоступен' })
+      }
+      if (token) {
+        const invitation = await client.query<{ survey_id: string | number | null; used_at: string | null }>(
+          'select survey_id, used_at from survey_tokens where token = $1 for update', [token],
+        )
+        const found = invitation.rows[0]
+        if (!found || (found.survey_id !== null && Number(found.survey_id) !== survey_id) || found.used_at) {
+          await client.query('rollback')
+          return reply.code(409).send({ error: 'Приглашение недействительно или уже использовано' })
+        }
+      }
       const insert = await client.query<SurveyRecord>(
         `insert into survey_responses
            (survey_id, answers, name, phone, email, comment, token,

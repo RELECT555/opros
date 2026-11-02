@@ -49,7 +49,13 @@ export function handleConnection(socket: WsSocket): void {
 
     let msg: WsClientMessage
     try {
-      msg = JSON.parse(data) as WsClientMessage
+      const parsed: unknown = JSON.parse(data)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid message')
+      const value = parsed as Record<string, unknown>
+      if (typeof value.type !== 'string') throw new Error('invalid type')
+      if (value.type === 'auth' && typeof value.token !== 'string') throw new Error('invalid token')
+      if (['subscribe', 'unsubscribe'].includes(value.type) && typeof value.channel !== 'string') throw new Error('invalid channel')
+      msg = parsed as WsClientMessage
     } catch {
       sendTo(socket, { type: 'error', message: 'invalid json' })
       return
@@ -95,7 +101,7 @@ function _handleMessage(socket: WsSocket, msg: WsClientMessage): void {
         break
       }
 
-      if (ch === 'admin' && !isAuthenticated(socket)) {
+      if (!isAuthenticated(socket)) {
         sendTo(socket, { type: 'error', message: 'auth required for admin channel' })
         break
       }
