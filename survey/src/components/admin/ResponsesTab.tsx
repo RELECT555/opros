@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { STATUS_CONFIG, STATUS_ORDER } from '../../lib/responseStatus'
+import { useState, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Pagination from '@mui/material/Pagination'
 import Tabs from '@mui/material/Tabs'
@@ -9,6 +10,8 @@ import {
 } from '../../lib/api-client'
 import type { SurveyRecord, TokenRecord, ResponseStatus, Survey } from '../../lib/supabase'
 import { ResponsesTabSkeleton } from './AdminSkeletons'
+import { buildResponsesCsv } from '../../lib/responsesCsv'
+import { useAdminRefresh } from '../../lib/useAdminRefresh'
 
 const CURRENT_LABELS: Record<string, string> = {
   yes:       'Да, используем CRM',
@@ -17,13 +20,6 @@ const CURRENT_LABELS: Record<string, string> = {
   switching: 'Хотим сменить текущую',
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
-export const STATUS_CONFIG: Record<ResponseStatus, { label: string; cls: string }> = {
-  new:         { label: 'Новая',      cls: 'adm-status--new' },
-  called:      { label: 'Позвонили',  cls: 'adm-status--called' },
-  in_progress: { label: 'В работе',   cls: 'adm-status--progress' },
-  closed:      { label: 'Закрыто',    cls: 'adm-status--closed' },
-}
 
 function StatusBadge({ status, size = 'sm' }: { status: ResponseStatus; size?: 'sm' | 'md' }) {
   const cfg = STATUS_CONFIG[status]
@@ -34,7 +30,7 @@ function StatusBadge({ status, size = 'sm' }: { status: ResponseStatus; size?: '
     </span>
   )
 }
-export const STATUS_ORDER: ResponseStatus[] = ['new', 'called', 'in_progress', 'closed']
+
 
 /** Только высота: без opacity, чтобы не дёргать композитинг соседних карточек. */
 const responseExpandTransition = {
@@ -49,35 +45,8 @@ function formatDate(iso: string) {
   })
 }
 
-function exportToCSV(rows: SurveyRecord[], tokens: TokenRecord[]) {
-  const tokenMap = new Map(tokens.map(t => [t.token, t.email]))
-  const esc = (val: string) => `"${val.replace(/"/g, '""')}"`
-
-  const headers = [
-    'ID', 'Дата', 'Имя', 'Телефон', 'Email', 'Email (токен)',
-    'Статус', 'Цель CRM', 'Использовали раньше', 'Текущая ситуация',
-    'Комментарий', 'Заметка менеджера',
-  ]
-
-  const lines = [
-    headers.join(';'),
-    ...rows.map(r => [
-      r.id,
-      formatDate(r.created_at),
-      esc(r.name),
-      esc(r.phone),
-      esc(r.email ?? ''),
-      esc(r.token ? (tokenMap.get(r.token) ?? '') : ''),
-      STATUS_CONFIG[r.status]?.label ?? r.status,
-      esc(r.crm_purpose.join(', ')),
-      esc(r.crm_used_before.join(', ')),
-      esc(CURRENT_LABELS[r.current_crm] ?? r.current_crm),
-      esc(r.comment ?? ''),
-      esc(r.manager_note ?? ''),
-    ].join(';')),
-  ]
-
-  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+function exportToCSV(rows: SurveyRecord[], tokens: TokenRecord[], survey: Survey) {
+  const blob = new Blob([buildResponsesCsv(rows, tokens, survey.config)], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -107,30 +76,32 @@ export function ResponsesTab({ surveyId, survey }: Props) {
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
 
-  const load = useCallback((p: number, filter: ResponseStatus | 'all') => {
-    setLoading(true)
-    setError('')
-    getResponsesPaged(p, PAGE_SIZE, surveyId, filter)
-      .then(({ data, total: t }) => {
-        setRows(data)
-        setTotal(t)
-        setNoteValues(prev => {
-          const next = { ...prev }
-          data.forEach(r => { if (!(r.id in next)) next[r.id] = r.manager_note ?? '' })
-          return next
-        })
+  const load = useCallback(async (p: number, filter: ResponseStatus | 'all', isCurrent: () => boolean = () => true, background = false) => {
+    if (!background) setLoading(true)
+    try {
+      const [{ data, total: t }, invitationTokens] = await Promise.all([
+        getResponsesPaged(p, PAGE_SIZE, surveyId, filter), getTokens(surveyId),
+      ])
+      if (!isCurrent()) return
+      setError('')
+      setRows(data)
+      setTokens(invitationTokens)
+      setTotal(t)
+      setNoteValues(prev => {
+        const next = { ...prev }
+        data.forEach(r => { if (!(r.id in next)) next[r.id] = r.manager_note ?? '' })
+        return next
       })
-      .catch(e => setError(e.message ?? 'Ошибка загрузки'))
-      .finally(() => setLoading(false))
+    } catch (e) {
+      if (isCurrent()) setError(e instanceof Error ? e.message : 'Ошибка загрузки')
+    } finally {
+      if (isCurrent()) setLoading(false)
+    }
   }, [surveyId])
 
-  useEffect(() => { load(page, statusFilter) }, [page, statusFilter, load])
-
-  useEffect(() => {
-    getTokens(surveyId)
-      .then(setTokens)
-      .catch(() => {})
-  }, [surveyId])
+  const refresh = useCallback((isCurrent: () => boolean, background: boolean) =>
+    load(page, statusFilter, isCurrent, background), [load, page, statusFilter])
+  useAdminRefresh(refresh)
 
   const tokenEmailMap = useMemo(
     () => new Map(tokens.map(t => [t.token, t.email])),
@@ -150,6 +121,8 @@ export function ResponsesTab({ surveyId, survey }: Props) {
     try {
       await updateResponseStatus(id, status)
       setRows(prev => prev.map(r => r.id === id ? { ...r, status } : r))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось изменить статус')
     } finally {
       setUpdatingStatus(null)
     }
@@ -160,6 +133,8 @@ export function ResponsesTab({ surveyId, survey }: Props) {
     try {
       await updateManagerNote(id, noteValues[id] ?? '')
       setRows(prev => prev.map(r => r.id === id ? { ...r, manager_note: noteValues[id] } : r))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось сохранить заметку')
     } finally {
       setSavingNote(null)
     }
@@ -169,7 +144,9 @@ export function ResponsesTab({ surveyId, survey }: Props) {
     setExporting(true)
     try {
       const all = await getResponses(surveyId)
-      exportToCSV(all, tokens)
+      exportToCSV(all, tokens, survey)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось выгрузить ответы')
     } finally {
       setExporting(false)
     }

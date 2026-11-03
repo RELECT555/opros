@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test": "node --experimental-strip-types --test test/*.test.ts",
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",

@@ -51,7 +51,11 @@ export function TokensTab({ surveyId, surveySlug }: Props) {
       .finally(() => setLoading(false))
   }, [surveyId])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    let active = true
+    void Promise.resolve().then(() => { if (active) load() })
+    return () => { active = false }
+  }, [load])
 
   async function generate() {
     const emails = emailInput.split(/[\n,;]+/).map(e => e.trim()).filter(Boolean)

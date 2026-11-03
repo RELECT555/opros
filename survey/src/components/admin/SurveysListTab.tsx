@@ -72,25 +72,13 @@ export function SurveysListTab({ onSelect, canGrantAccess = false }: Props) {
   const [deleteBusy, setDeleteBusy] = useState(false)
   const [deleteErr, setDeleteErr] = useState('')
 
-  function load() {
-    setLoading(true)
-    getSurveys()
-      .then(setSurveys)
-      .catch(e => setError(e.message ?? 'Ошибка загрузки'))
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { load() }, [])
-
   useEffect(() => {
-    if (!editModal) return
-    setEditTitle(editModal.title)
-    setEditSlug(editModal.slug)
-    setEditDesc(editModal.description ?? '')
-    setEditActive(editModal.is_active)
-    setEditSlugManual(false)
-    setEditErr('')
-  }, [editModal])
+    let active = true
+    getSurveys().then(rows => { if (active) setSurveys(rows) })
+      .catch(e => { if (active) setError(e.message ?? 'Ошибка загрузки') })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     if (!editModal && !deleteModal) return
@@ -694,6 +682,12 @@ export function SurveysListTab({ onSelect, canGrantAccess = false }: Props) {
                       aria-label="Редактировать опросник"
                       onClick={e => {
                         e.stopPropagation()
+                        setEditTitle(survey.title)
+                        setEditSlug(survey.slug)
+                        setEditDesc(survey.description ?? '')
+                        setEditActive(survey.is_active)
+                        setEditSlugManual(false)
+                        setEditErr('')
                         setEditModal(survey)
                       }}
                     >

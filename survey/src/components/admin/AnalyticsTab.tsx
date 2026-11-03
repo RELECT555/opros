@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { motion, easeOut } from 'framer-motion'
 import { getResponses, getTokens } from '../../lib/api-client'
 import type {
@@ -10,6 +10,7 @@ import type {
   SurveyQuestion,
 } from '../../lib/supabase'
 import { AnalyticsTabSkeleton } from './AdminSkeletons'
+import { useAdminRefresh } from '../../lib/useAdminRefresh'
 
 const STATUS_CONFIG: Record<ResponseStatus, { label: string }> = {
   new:         { label: 'Новая' },
@@ -194,12 +195,20 @@ export function AnalyticsTab({ surveyId, survey }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    Promise.all([getResponses(surveyId), getTokens(surveyId)])
-      .then(([r, t]) => { setResponses(r); setTokens(t) })
-      .catch(e => setError(e.message ?? 'Ошибка загрузки'))
-      .finally(() => setLoading(false))
+  const refresh = useCallback(async (isCurrent: () => boolean) => {
+    try {
+      const [r, t] = await Promise.all([getResponses(surveyId), getTokens(surveyId)])
+      if (!isCurrent()) return
+      setResponses(r)
+      setTokens(t)
+      setError('')
+    } catch (e) {
+      if (isCurrent()) setError(e instanceof Error ? e.message : 'Ошибка загрузки')
+    } finally {
+      if (isCurrent()) setLoading(false)
+    }
   }, [surveyId])
+  useAdminRefresh(refresh)
 
   const cfg = survey.config
 

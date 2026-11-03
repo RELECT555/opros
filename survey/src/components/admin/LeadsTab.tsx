@@ -21,7 +21,7 @@ import {
   PAGE_SIZE,
 } from '../../lib/api-client'
 import type { LeadProjectRecord, ManualLeadRecord, ResponseStatus } from '../../lib/api-client'
-import { STATUS_CONFIG, STATUS_ORDER } from './ResponsesTab'
+import { STATUS_CONFIG, STATUS_ORDER } from '../../lib/responseStatus'
 import { ResponsesTabSkeleton } from './AdminSkeletons'
 
 const expandTransition = {
@@ -75,7 +75,11 @@ function ProjectsScreen({
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    let active = true
+    void Promise.resolve().then(() => { if (active) load() })
+    return () => { active = false }
+  }, [load])
 
   function openCreate() {
     setFormName('')
@@ -300,7 +304,11 @@ function LeadsScreen({
       .finally(() => setLoading(false))
   }, [project.id])
 
-  useEffect(() => { load(page, statusFilter) }, [page, statusFilter, load])
+  useEffect(() => {
+    let active = true
+    void Promise.resolve().then(() => { if (active) load(page, statusFilter) })
+    return () => { active = false }
+  }, [page, statusFilter, load])
 
   function openCreate() {
     setEditing(null)

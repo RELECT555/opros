@@ -169,6 +169,8 @@ export function LoginScreen({
             <input
               type={showPw ? 'text' : 'password'}
               placeholder="Пароль"
+              aria-label="Пароль администратора"
+              autoComplete="current-password"
               value={pw}
               onChange={e => setPw(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && submit()}
@@ -178,7 +180,8 @@ export function LoginScreen({
               type="button"
               className="ls-eye"
               onClick={() => setShowPw(v => !v)}
-              tabIndex={-1}
+              aria-label={showPw ? 'Скрыть пароль' : 'Показать пароль'}
+              aria-pressed={showPw}
             >
               {showPw ? (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
