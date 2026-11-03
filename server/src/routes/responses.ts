@@ -5,7 +5,8 @@ import { accessibleSurveyIds, canAccessResponse, canAccessSurvey } from '../lib/
 import { sendTelegramNotification } from '../services/telegram.js'
 import { emitResponseNew, emitResponseStatus } from '../ws/index.js'
 import { httpLog } from '../logger.js'
-import type { SurveyRecord } from '../types/models.js'
+import type { SurveyRecord, SurveyConfigData } from '../types/models.js'
+import { validateResponse } from '../lib/response-validation.js'
 
 const PAGE_SIZE = 20
 const EXPORT_DEFAULT_LIMIT = 5_000
@@ -23,8 +24,8 @@ export async function responsesRoutes(app: FastifyInstance) {
     Body: {
       survey_id: number
       answers?: Record<string, unknown>
-      name: string
-      phone: string
+      name?: string
+      phone?: string
       email?: string
       comment?: string
       token?: string
@@ -37,12 +38,12 @@ export async function responsesRoutes(app: FastifyInstance) {
     schema: {
       body: {
         type: 'object',
-        required: ['survey_id', 'name', 'phone'],
+        required: ['survey_id'],
         properties: {
           survey_id:       { type: 'integer', minimum: 1 },
           answers:         { type: 'object' },
-          name:            { type: 'string', minLength: 1, maxLength: 200 },
-          phone:           { type: 'string', minLength: 5, maxLength: 30 },
+          name:            { type: 'string', maxLength: 200 },
+          phone:           { type: 'string', maxLength: 30 },
           email:           { type: 'string', maxLength: 200 },
           comment:         { type: 'string', maxLength: 2000 },
           token:           { type: 'string', maxLength: 100 },
@@ -61,6 +62,32 @@ export async function responsesRoutes(app: FastifyInstance) {
     let row: SurveyRecord | null = null
     try {
       await client.query('begin')
+      const survey = await client.query<{ is_active: boolean; config: SurveyConfigData }>(
+        'select is_active, config from surveys where id = $1 for share', [survey_id],
+      )
+      if (!survey.rows[0]?.is_active) {
+        await client.query('rollback')
+        return reply.code(404).send({ error: 'Опрос недоступен' })
+      }
+      let responseEmail = email?.trim() || null
+      if (token) {
+        const invitation = await client.query<{ survey_id: string | number | null; used_at: string | null; email: string }>(
+          'select survey_id, used_at, email from survey_tokens where token = $1 for update', [token],
+        )
+        const found = invitation.rows[0]
+        if (!found || (found.survey_id !== null && Number(found.survey_id) !== survey_id) || found.used_at) {
+          await client.query('rollback')
+          return reply.code(409).send({ error: 'Приглашение недействительно или уже использовано' })
+        }
+        if (survey.rows[0].config.contacts_block?.hide_email_when_token !== false) responseEmail = found.email
+      }
+      const validationError = validateResponse(survey.rows[0].config, answers ?? {}, {
+        name, phone, email: responseEmail ?? undefined, comment,
+      })
+      if (validationError) {
+        await client.query('rollback')
+        return reply.code(400).send({ error: validationError })
+      }
       const insert = await client.query<SurveyRecord>(
         `insert into survey_responses
            (survey_id, answers, name, phone, email, comment, token,
@@ -70,8 +97,8 @@ export async function responsesRoutes(app: FastifyInstance) {
         [
           survey_id,
           JSON.stringify(answers ?? {}),
-          name, phone,
-          email ?? null,
+          name?.trim() ?? '', phone?.trim() ?? '',
+          responseEmail,
           comment ?? null,
           token ?? null,
           crm_purpose ?? [],

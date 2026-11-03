@@ -84,10 +84,6 @@ export function mergeSurveyDesign(d?: SurveyDesign): MergedSurveyDesign {
   const merged: MergedSurveyDesign = {
     ...COLOR_DEFAULTS,
     ...COPY_DEFAULTS,
-    type_scale: 'normal',
-    cta_style: 'gradient',
-    radius: 'md',
-    orb_intensity: 'medium',
     ...d,
     accent: d?.accent ?? COLOR_DEFAULTS.accent,
     accent2: d?.accent2 ?? COLOR_DEFAULTS.accent2,

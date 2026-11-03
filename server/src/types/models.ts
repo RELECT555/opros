@@ -88,6 +88,7 @@ export type ContactsFieldPartial = {
 }
 
 export type ContactsBlockConfig = {
+  disabled?: boolean
   step_pill_label?: string
   step_pill_done_label?: string
   title?: string

@@ -20,7 +20,7 @@ import { ProductUpdatesTab } from '../components/admin/ProductUpdatesTab'
 import { LeadsTab } from '../components/admin/LeadsTab'
 import { AdminDemoLeadsShell } from '../components/admin/AdminDemoLeadsShell'
 import { AdminWelcomeModal } from '../components/admin/AdminWelcomeModal'
-import { SparklesCore } from '../components/ui/Sparkles'
+import { SparklesCore } from '../components/ui/sparkles'
 import { AdminSurveyBootstrapSkeleton } from '../components/admin/AdminSkeletons'
 import { getSurveys, getSurveyById, fetchMe, logout } from '../lib/api-client'
 import type { Survey, AuthMe } from '../lib/api-client'
@@ -48,7 +48,7 @@ export default function AdminPage() {
   const [authMe, setAuthMe] = useState<AuthMe | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
   const [activeSurvey, setActiveSurvey] = useState<Survey | null>(null)
-  const [tab, setTab] = useState<Tab>('responses')
+  const [requestedTab, setTab] = useState<Tab>('responses')
   const [collapsed, setCollapsed] = useState(false)
   const [showLandingChoice, setShowLandingChoice] = useState(false)
   const [surveysListOpen, setSurveysListOpen] = useState(true)
@@ -82,20 +82,9 @@ export default function AdminPage() {
     (authMe?.auth === 'oauth' && authMe.user.is_global_admin)
 
   const canUseManualLeads = canGrantSurveyAccess
-  const isDemoLeadsPlatform = canUseManualLeads && adminPlatform === 'demo_leads'
-
-  useEffect(() => {
-    if (!canUseManualLeads) {
-      setAdminPlatform('surveys')
-      setTab(t => (t === 'leads' ? 'responses' : t))
-      return
-    }
-    if (tab === 'leads') setAdminPlatform('demo_leads')
-  }, [tab, canUseManualLeads])
-
-  useEffect(() => {
-    if (tab === 'updates') setAdminPlatform('surveys')
-  }, [tab])
+  const tab = requestedTab === 'leads' && !canUseManualLeads ? 'responses' : requestedTab
+  const isDemoLeadsPlatform = canUseManualLeads && tab !== 'updates' &&
+    (tab === 'leads' || adminPlatform === 'demo_leads')
 
   useEffect(() => {
     let cancelled = false
@@ -305,11 +294,11 @@ export default function AdminPage() {
     if (reduceMotion) return
     const el = sidebarRef.current
     if (!el) return
-    function onTransitionStart(ev: TransitionEvent) {
+    const onTransitionStart = (ev: TransitionEvent) => {
       if (ev.target !== el || ev.propertyName !== 'width') return
       el.classList.add('adm-sidebar--animating')
     }
-    function onTransitionEnd(ev: TransitionEvent) {
+    const onTransitionEnd = (ev: TransitionEvent) => {
       if (ev.target !== el || ev.propertyName !== 'width') return
       el.classList.remove('adm-sidebar--animating')
     }
@@ -812,16 +801,6 @@ function MegaphoneIcon() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3 11v4a2 2 0 002 2h2l6 3V6L7 9H5a2 2 0 00-2 2z" />
       <path d="M16 9.5a4 4 0 010 5" />
-    </svg>
-  )
-}
-
-function ManualLeadsIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
     </svg>
   )
 }

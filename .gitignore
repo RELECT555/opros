@@ -6,3 +6,5 @@ dist/
 .DS_Store
 supabase/.temp/
 .vercel
+supabase/functions/opros-api/server.mjs
+supabase/functions/opros-api/deno.json

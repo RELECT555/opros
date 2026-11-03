@@ -118,8 +118,8 @@ export async function tokensRoutes(app: FastifyInstance) {
       schema: { params: TOKEN_PARAMS },
     },
     async (req, reply) => {
-      const row = await queryOne<{ email: string; survey_id: number | null }>(
-        'select email, survey_id from survey_tokens where token = $1',
+      const row = await queryOne<{ email: string; survey_id: number | null; used_at: string | null }>(
+        'select email, survey_id, used_at from survey_tokens where token = $1',
         [req.params.token],
       )
       if (!row) return reply.code(404).send({ error: 'Токен не найден' })

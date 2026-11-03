@@ -38,9 +38,21 @@ export async function attachAuthContext(
   }
 
   const secret = process.env.SUPABASE_JWT_SECRET
-  if (!secret) return null
-
-  const claims = await verifySupabaseAccessToken(token, secret)
+  let claims: { sub: string; email: string } | null = null
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+    try {
+      const response = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
+        headers: { apikey: process.env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(5000),
+      })
+      if (response.ok) {
+        const user = await response.json() as { id?: string; email?: string; email_confirmed_at?: string }
+        if (user.id && user.email && user.email_confirmed_at) claims = { sub: user.id, email: user.email }
+      }
+    } catch { return null }
+  } else if (secret) {
+    claims = await verifySupabaseAccessToken(token, secret)
+  }
   if (!claims) return null
 
   const { isGlobalAdmin } = await ensureProfile(claims.sub, claims.email)

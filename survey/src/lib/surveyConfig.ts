@@ -42,7 +42,7 @@ export const DEFAULTS: SurveyConfig = {
   },
 }
 
-import { getConfig, setConfig } from './lib/supabase'
+import { getConfig, setConfig } from './api-client'
 
 export function mergeWithDefaults(raw: Partial<SurveyConfig>): SurveyConfig {
   return {

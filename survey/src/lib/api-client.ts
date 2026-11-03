@@ -8,43 +8,10 @@ import type {
   ManualLeadRecord,
   LeadProjectRecord,
 } from './supabase'
-import {
-  supabase,
-  getSurveys          as db_getSurveys,
-  getSurveyBySlug     as db_getSurveyBySlug,
-  getSurveyById       as db_getSurveyById,
-  createSurvey        as db_createSurvey,
-  updateSurveyConfig  as db_updateSurveyConfig,
-  updateSurveyMeta    as db_updateSurveyMeta,
-  deleteSurvey        as db_deleteSurvey,
-  uploadSurveyLogo    as db_uploadSurveyLogo,
-  getResponsesPaged   as db_getResponsesPaged,
-  getResponses        as db_getResponses,
-  updateResponseStatus as db_updateResponseStatus,
-  updateManagerNote   as db_updateManagerNote,
-  saveSurveyResponseGeneric as db_saveSurveyResponseGeneric,
-  getManualLeadsPaged as db_getManualLeadsPaged,
-  createManualLead    as db_createManualLead,
-  updateManualLead    as db_updateManualLead,
-  deleteManualLead    as db_deleteManualLead,
-  getTokens           as db_getTokens,
-  createTokens        as db_createTokens,
-  deleteToken         as db_deleteToken,
-  regenerateToken     as db_regenerateToken,
-  resolveToken        as db_resolveToken,
-  markTokenOpened     as db_markTokenOpened,
-  getConfig           as db_getConfig,
-  setConfig           as db_setConfig,
-  getGlobalTheme      as db_getGlobalTheme,
-  setGlobalTheme      as db_setGlobalTheme,
-} from './supabase'
+import { supabase } from './supabase'
 import { ADMIN_JWT_STORAGE_KEY, clearAdminAuthenticated, markAdminAuthenticated } from './adminSession'
 import { API_BASE_URL } from './apiBaseUrl'
-import {
-  CLIENT_ONLY_TOKEN,
-  passwordMatchesClientOnly,
-  readClientOnlyMe,
-} from './clientOnlyAdmin'
+import { canUseWelcomeFixture } from './devFixtureAccess'
 
 export type { Survey, SurveyConfigData, SurveyRecord, TokenRecord, ResponseStatus, ManualLeadRecord, LeadProjectRecord }
 export { PAGE_SIZE } from './supabase'
@@ -53,14 +20,7 @@ export type AuthMe =
   | { auth: 'password_admin' }
   | { auth: 'oauth'; user: { id: string; email: string; is_global_admin: boolean } }
 
-function _direct(): boolean {
-  if (!API_BASE_URL) return true
-  try {
-    return localStorage.getItem(ADMIN_JWT_STORAGE_KEY) === CLIENT_ONLY_TOKEN
-  } catch {
-    return !API_BASE_URL
-  }
-}
+
 
 async function authHeaders(): Promise<Record<string, string>> {
   // Prefer OAuth session token from Supabase. A stale password-admin JWT in localStorage
@@ -74,7 +34,7 @@ async function authHeaders(): Promise<Record<string, string>> {
   }
   try {
     const admin = localStorage.getItem(ADMIN_JWT_STORAGE_KEY)
-    if (admin && admin !== CLIENT_ONLY_TOKEN) {
+    if (admin && admin !== '__askly_client_only_v1__') {
       return { Authorization: `Bearer ${admin}` }
     }
   } catch {
@@ -93,7 +53,7 @@ async function _fetch<T>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       signal: ctrl.signal,
       headers: {
-        'Content-Type': 'application/json',
+        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
         ...(await authHeaders()),
         ...init?.headers,
       },
@@ -118,43 +78,9 @@ async function _fetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 // ── Auth ────────────────────────────────────────────────────
 
-async function attemptSilentLogin(password: string): Promise<string | null> {
-  if (!API_BASE_URL) return null
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
-    })
-    const text = await res.text()
-    let body: { error?: string; token?: string }
-    try {
-      body = text ? (JSON.parse(text) as { error?: string; token?: string }) : {}
-    } catch {
-      return null
-    }
-    if (!res.ok || typeof body.token !== 'string' || !body.token) return null
-    return body.token
-  } catch {
-    return null
-  }
-}
+
 
 export async function login(password: string): Promise<string> {
-  if (passwordMatchesClientOnly(password)) {
-    const jwt = await attemptSilentLogin(password)
-    if (jwt) {
-      localStorage.setItem(ADMIN_JWT_STORAGE_KEY, jwt)
-      markAdminAuthenticated()
-      return jwt
-    }
-    localStorage.setItem(ADMIN_JWT_STORAGE_KEY, CLIENT_ONLY_TOKEN)
-    markAdminAuthenticated()
-    return CLIENT_ONLY_TOKEN
-  }
-  if (!API_BASE_URL) {
-    throw new Error('Неверный пароль')
-  }
   const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -183,9 +109,6 @@ export async function login(password: string): Promise<string> {
 }
 
 export async function fetchMe(): Promise<AuthMe | null> {
-  const local = readClientOnlyMe()
-  if (local) return local
-  if (_direct()) return null
   try {
     return await _fetch<AuthMe>('/api/auth/me')
   } catch {
@@ -194,9 +117,6 @@ export async function fetchMe(): Promise<AuthMe | null> {
 }
 
 export async function fetchMeOrThrow(): Promise<AuthMe> {
-  const local = readClientOnlyMe()
-  if (local) return local
-  if (_direct()) throw new Error('No API server configured')
   const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
     headers: {
       'Content-Type': 'application/json',
@@ -239,12 +159,7 @@ export async function logout(): Promise<void> {
 // ── Surveys CRUD ────────────────────────────────────────────
 
 export async function getSurveys(): Promise<Survey[]> {
-  if (_direct()) return db_getSurveys()
-  try {
-    return await _fetch('/api/admin/surveys')
-  } catch {
-    return db_getSurveys()
-  }
+  return _fetch('/api/admin/surveys')
 }
 
 /**
@@ -253,33 +168,17 @@ export async function getSurveys(): Promise<Survey[]> {
  * при наличии VITE_API_URL пробуем GET /api/surveys/:slug.
  */
 export async function getSurveyBySlug(slug: string): Promise<Survey | null> {
-  const s = slug?.trim()
-  if (!s) return null
-
-  let fromSb: Survey | null = null
-  try {
-    fromSb = await db_getSurveyBySlug(s)
-  } catch (e) {
-    console.warn('[Askly] getSurveyBySlug: Supabase', e)
+  if (!slug.trim()) return null
+  if (import.meta.env.DEV && canUseWelcomeFixture(
+    import.meta.env.DEV, import.meta.env.VITE_ENABLE_UI_FIXTURES, window.location.hostname, slug,
+  )) {
+    return (await import('../fixtures/welcomeSurvey')).welcomeSurvey
   }
-  if (fromSb) return fromSb
-
-  if (!API_BASE_URL) return null
-  try {
-    return await _fetch(`/api/surveys/${encodeURIComponent(s)}`)
-  } catch (e) {
-    console.warn('[Askly] getSurveyBySlug: API', e)
-    return null
-  }
+  return _fetch(`/api/surveys/${encodeURIComponent(slug.trim())}`)
 }
 
 export async function getSurveyById(id: number): Promise<Survey | null> {
-  if (_direct()) return db_getSurveyById(id)
-  try {
-    return await _fetch(`/api/admin/surveys/${id}`)
-  } catch {
-    return db_getSurveyById(id)
-  }
+  return _fetch(`/api/admin/surveys/${id}`)
 }
 
 export async function createSurvey(input: {
@@ -288,7 +187,6 @@ export async function createSurvey(input: {
   description?: string
   config: SurveyConfigData
 }): Promise<Survey> {
-  if (_direct()) return db_createSurvey(input)
   return _fetch('/api/admin/surveys', {
     method: 'POST',
     body: JSON.stringify(input),
@@ -296,7 +194,6 @@ export async function createSurvey(input: {
 }
 
 export async function updateSurveyConfig(id: number, config: SurveyConfigData): Promise<void> {
-  if (_direct()) return db_updateSurveyConfig(id, config)
   await _fetch(`/api/admin/surveys/${id}/config`, {
     method: 'PUT',
     body: JSON.stringify({ config }),
@@ -307,12 +204,7 @@ export async function updateSurveyMeta(
   id: number,
   meta: { slug?: string; title?: string; description?: string; is_active?: boolean },
 ): Promise<Survey> {
-  if (_direct()) {
-    await db_updateSurveyMeta(id, meta)
-    const updated = await db_getSurveyById(id)
-    if (!updated) throw new Error('Survey not found after update')
-    return updated
-  }
+
   return _fetch(`/api/admin/surveys/${id}`, {
     method: 'PUT',
     body: JSON.stringify(meta),
@@ -320,12 +212,10 @@ export async function updateSurveyMeta(
 }
 
 export async function deleteSurvey(id: number): Promise<void> {
-  if (_direct()) return db_deleteSurvey(id)
   await _fetch(`/api/admin/surveys/${id}`, { method: 'DELETE' })
 }
 
 export async function grantSurveyAccess(_surveyId: number, _email: string): Promise<void> {
-  if (_direct()) return
   await _fetch(`/api/admin/surveys/${_surveyId}/share`, {
     method: 'POST',
     body: JSON.stringify({ email: _email }),
@@ -335,7 +225,6 @@ export async function grantSurveyAccess(_surveyId: number, _email: string): Prom
 // ── Logo upload ─────────────────────────────────────────────
 
 export async function uploadSurveyLogo(surveyId: number, file: File): Promise<string> {
-  if (_direct()) return db_uploadSurveyLogo(surveyId, file)
   if (!file.type.startsWith('image/')) {
     throw new Error('Select an image file')
   }
@@ -358,7 +247,7 @@ export async function uploadSurveyLogo(surveyId: number, file: File): Promise<st
   }
 
   const { url } = await res.json() as { url: string }
-  return url
+  return new URL(url, API_BASE_URL || window.location.origin).href
 }
 
 // ── Responses ───────────────────────────────────────────────
@@ -370,7 +259,6 @@ export async function getResponsesPaged(
   surveyId?: number,
   status?: ResponseStatus | 'all',
 ): Promise<{ data: SurveyRecord[]; total: number }> {
-  if (_direct()) return db_getResponsesPaged(page, _pageSize, surveyId, status)
   const params = new URLSearchParams({ page: String(page) })
   if (surveyId !== undefined) params.set('survey_id', String(surveyId))
   if (status && status !== 'all') params.set('status', status)
@@ -378,7 +266,6 @@ export async function getResponsesPaged(
 }
 
 export async function getResponses(surveyId?: number): Promise<SurveyRecord[]> {
-  if (_direct()) return db_getResponses(surveyId)
   const out: SurveyRecord[] = []
   let offset = 0
   const EXPORT_PAGE = 5_000
@@ -398,7 +285,6 @@ export async function getResponses(surveyId?: number): Promise<SurveyRecord[]> {
 }
 
 export async function updateResponseStatus(id: number, status: ResponseStatus): Promise<void> {
-  if (_direct()) return db_updateResponseStatus(id, status)
   await _fetch(`/api/admin/responses/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
@@ -406,7 +292,6 @@ export async function updateResponseStatus(id: number, status: ResponseStatus): 
 }
 
 export async function updateManagerNote(id: number, note: string): Promise<void> {
-  if (_direct()) return db_updateManagerNote(id, note)
   await _fetch(`/api/admin/responses/${id}/note`, {
     method: 'PATCH',
     body: JSON.stringify({ note }),
@@ -434,11 +319,11 @@ export async function deleteLeadProject(id: number): Promise<void> {
 
 export async function getManualLeadsPaged(
   page: number,
-  pageSize = 20,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _pageSize = 20,
   status?: ResponseStatus | 'all',
   projectId?: number,
 ): Promise<{ data: ManualLeadRecord[]; total: number }> {
-  if (_direct()) return db_getManualLeadsPaged(page, pageSize, status)
   const params = new URLSearchParams({ page: String(page) })
   if (status && status !== 'all') params.set('status', status)
   if (projectId !== undefined) params.set('project_id', String(projectId))
@@ -455,7 +340,6 @@ export async function createManualLead(input: {
   status?: ResponseStatus
   manager_note?: string
 }): Promise<ManualLeadRecord> {
-  if (_direct()) return db_createManualLead(input)
   return _fetch('/api/admin/manual-leads', {
     method: 'POST',
     body: JSON.stringify(input),
@@ -474,7 +358,6 @@ export async function updateManualLead(
     manager_note: string | null
   }>,
 ): Promise<ManualLeadRecord> {
-  if (_direct()) return db_updateManualLead(id, patch)
   return _fetch(`/api/admin/manual-leads/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
@@ -482,43 +365,27 @@ export async function updateManualLead(
 }
 
 export async function deleteManualLead(id: number): Promise<void> {
-  if (_direct()) return db_deleteManualLead(id)
   await _fetch(`/api/admin/manual-leads/${id}`, { method: 'DELETE' })
 }
 
 export async function saveSurveyResponseGeneric(data: GenericSurveyResponse): Promise<void> {
-  if (_direct()) return db_saveSurveyResponseGeneric(data)
-  try {
-    await _fetch('/api/responses', {
-      method: 'POST',
-      body: JSON.stringify({
-        survey_id: data.surveyId,
-        answers: data.answers,
-        name: data.name,
-        phone: data.phone,
-        email: data.email,
-        comment: data.comment,
-        token: data.token,
-        crm_purpose: [],
-        crm_used_before: [],
-        current_crm: '',
-      }),
-    })
-  } catch {
-    await db_saveSurveyResponseGeneric(data)
-  }
+  if (data.surveyId === -1) throw new Error('Локальный пример: ответы не отправляются и не сохраняются.')
+  await _fetch('/api/responses', {
+    method: 'POST',
+    body: JSON.stringify({ survey_id: data.surveyId, answers: data.answers,
+      name: data.name, phone: data.phone, email: data.email,
+      comment: data.comment, token: data.token }),
+  })
 }
 
 // ── Tokens ──────────────────────────────────────────────────
 
 export async function getTokens(surveyId?: number): Promise<TokenRecord[]> {
-  if (_direct()) return db_getTokens(surveyId)
   const params = surveyId !== undefined ? `?survey_id=${surveyId}` : ''
   return _fetch(`/api/admin/tokens${params}`)
 }
 
 export async function createTokens(emails: string[], surveyId?: number): Promise<TokenRecord[]> {
-  if (_direct()) return db_createTokens(emails, surveyId)
   return _fetch('/api/admin/tokens', {
     method: 'POST',
     body: JSON.stringify({ emails, survey_id: surveyId }),
@@ -526,39 +393,43 @@ export async function createTokens(emails: string[], surveyId?: number): Promise
 }
 
 export async function deleteToken(token: string): Promise<void> {
-  if (_direct()) return db_deleteToken(token)
   await _fetch(`/api/admin/tokens/${token}`, { method: 'DELETE' })
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function regenerateToken(oldToken: string, _email: string, _surveyId?: number): Promise<TokenRecord> {
-  if (_direct()) return db_regenerateToken(oldToken, _email, _surveyId)
   return _fetch(`/api/admin/tokens/${oldToken}/regenerate`, { method: 'POST' })
 }
 
 export async function resolveToken(token: string): Promise<string | null> {
-  if (_direct()) return db_resolveToken(token)
   try {
     const data = await _fetch<{ email: string }>(`/api/tokens/${token}`)
     return data.email
   } catch {
-    return db_resolveToken(token)
+    return null
   }
 }
 
+export async function getInvitation(token: string, surveyId: number): Promise<{ email: string }> {
+  const invitation = await _fetch<{ email: string; survey_id: number | null; used_at: string | null }>(`/api/tokens/${encodeURIComponent(token)}`)
+  if (invitation.survey_id !== null && Number(invitation.survey_id) !== Number(surveyId)) {
+    throw new Error('Приглашение относится к другому опросу')
+  }
+  if (invitation.used_at) throw new Error('Это приглашение уже использовано')
+  return invitation
+}
+
 export async function markTokenOpened(token: string): Promise<void> {
-  if (_direct()) return db_markTokenOpened(token)
   try {
     await _fetch(`/api/tokens/${token}/opened`, { method: 'PATCH' })
   } catch {
-    await db_markTokenOpened(token)
+    // Statistics must not bypass the API on failure.
   }
 }
 
 // ── Config (legacy) ─────────────────────────────────────────
 
 export async function getConfig(): Promise<Record<string, unknown> | null> {
-  if (_direct()) return db_getConfig()
   try {
     return await _fetch('/api/config/1')
   } catch {
@@ -567,7 +438,6 @@ export async function getConfig(): Promise<Record<string, unknown> | null> {
 }
 
 export async function setConfig(config: unknown): Promise<void> {
-  if (_direct()) return db_setConfig(config)
   await _fetch('/api/admin/config/1', {
     method: 'PUT',
     body: JSON.stringify({ config }),
@@ -577,7 +447,6 @@ export async function setConfig(config: unknown): Promise<void> {
 // ── Global admin theme ──────────────────────────────────────
 
 export async function getGlobalTheme(): Promise<Record<string, unknown> | null> {
-  if (_direct()) return db_getGlobalTheme()
   try {
     return await _fetch('/api/admin/theme')
   } catch {
@@ -586,7 +455,6 @@ export async function getGlobalTheme(): Promise<Record<string, unknown> | null> 
 }
 
 export async function setGlobalTheme(theme: unknown): Promise<void> {
-  if (_direct()) return db_setGlobalTheme(theme)
   await _fetch('/api/admin/theme', {
     method: 'PUT',
     body: JSON.stringify({ theme }),

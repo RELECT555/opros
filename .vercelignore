@@ -2,3 +2,4 @@
 # Папка с именем api/ в корне у Vercel трактуется как набор Serverless Functions и упирается в лимит Hobby (12 шт.).
 server/
 supabase/
+survey/.env

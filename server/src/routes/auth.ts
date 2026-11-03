@@ -2,10 +2,12 @@ import type { FastifyInstance } from 'fastify'
 import { timingSafeEqual } from 'node:crypto'
 import { httpLog } from '../logger.js'
 import { attachAuthContext } from '../middleware/auth.js'
+import { queryOne } from '../db/client.js'
 
 function _safeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+  const left = Buffer.from(a)
+  const right = Buffer.from(b)
+  return left.length === right.length && timingSafeEqual(left, right)
 }
 
 export async function authRoutes(app: FastifyInstance) {
@@ -28,12 +30,18 @@ export async function authRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { password } = req.body
       const expected = process.env.ADMIN_PASSWORD
-      if (!expected) {
-        httpLog.error('ADMIN_PASSWORD не задан в .env')
-        return reply.code(500).send({ error: 'Сервер не настроен для аутентификации' })
+      let valid = expected ? _safeCompare(password, expected) : false
+      if (!expected && process.env.OPROS_HOSTED === 'true') {
+        const row = await queryOne<{ valid: boolean }>(
+          'select opros_private.verify_admin_login($1, $2) as valid',
+          [password, req.ip],
+        )
+        valid = row?.valid === true
+      } else if (!expected) {
+        httpLog.error('ADMIN_PASSWORD is not configured')
+        return reply.code(503).send({ error: 'Сервер не настроен для аутентификации' })
       }
-
-      if (!_safeCompare(password, expected)) {
+      if (!valid) {
         return reply.code(401).send({ error: 'Неверный пароль' })
       }
 
