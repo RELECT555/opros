@@ -1,12 +1,14 @@
 import { cn } from '../../lib/utils'
 import React, { useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import { useBackgroundMotion } from '../../lib/useBackgroundMotion'
 
 type DottedSurfaceProps = Omit<React.ComponentProps<'div'>, 'ref'>
 
 export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number>(0)
+  const [motionEnabled] = useBackgroundMotion()
 
   useEffect(() => {
     const container = containerRef.current
@@ -26,8 +28,14 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
     )
     camera.position.set(0, 355, 1220)
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
-    renderer.setPixelRatio(window.devicePixelRatio)
+    let renderer: THREE.WebGLRenderer
+    try {
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
+    } catch {
+      // Decorative graphics must never prevent answering the survey on devices without WebGL.
+      return
+    }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.setSize(window.innerWidth, window.innerHeight)
     renderer.setClearColor(0x000000, 0)
     container.appendChild(renderer.domElement)
@@ -59,9 +67,13 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
     scene.add(points)
 
     let count = 0
+    let previousTime = performance.now()
 
-    const animate = () => {
-      rafRef.current = requestAnimationFrame(animate)
+    const animate = (time = performance.now()) => {
+      if (motionEnabled && !document.hidden) rafRef.current = requestAnimationFrame(animate)
+      // Same wave speed on 60/120/144 Hz displays; no jump after a background tab resumes.
+      if (motionEnabled) count += Math.min((time - previousTime) / 1000, 0.05) * 6
+      previousTime = time
 
       const posArr = geometry.attributes.position.array as Float32Array
       let i = 0
@@ -75,33 +87,43 @@ export function DottedSurface({ className, ...props }: DottedSurfaceProps) {
       }
       geometry.attributes.position.needsUpdate = true
       renderer.render(scene, camera)
-      count += 0.1
     }
 
     const handleResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight
       camera.updateProjectionMatrix()
       renderer.setSize(window.innerWidth, window.innerHeight)
+      // Resizing clears the drawing buffer, including when reduced motion has stopped the loop.
+      renderer.render(scene, camera)
     }
 
     window.addEventListener('resize', handleResize)
+    const handleVisibility = () => {
+      cancelAnimationFrame(rafRef.current)
+      previousTime = performance.now()
+      if (!document.hidden) animate()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
     animate()
 
     return () => {
       window.removeEventListener('resize', handleResize)
+      document.removeEventListener('visibilitychange', handleVisibility)
       cancelAnimationFrame(rafRef.current)
       geometry.dispose()
       material.dispose()
       renderer.dispose()
+      renderer.forceContextLoss()
       if (renderer.domElement.parentNode === container) {
         container.removeChild(renderer.domElement)
       }
     }
-  }, [])
+  }, [motionEnabled])
 
   return (
     <div
       ref={containerRef}
+      aria-hidden="true"
       className={cn('pointer-events-none', className)}
       {...props}
     />

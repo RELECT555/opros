@@ -1,0 +1,35 @@
+:root {
+  /* Welcome roles derive from the survey theme, including admin-authored colors. */
+  --welcome-ink: var(--text);
+  --welcome-bg: color-mix(in srgb, var(--accent) 18%, var(--bg));
+  --welcome-muted: color-mix(in srgb, var(--text) 76%, var(--welcome-bg));
+  --welcome-faint: color-mix(in srgb, var(--text) 65%, var(--welcome-bg));
+  --welcome-line: color-mix(in srgb, var(--text) 16%, var(--welcome-bg));
+  --welcome-action: var(--accent);
+  --welcome-action-ink: var(--bg);
+  --welcome-action-hover: color-mix(in srgb, var(--accent) 88%, var(--text));
+  --welcome-action-shadow: 0 4px 12px color-mix(in srgb, var(--bg) 24%, transparent);
+  --welcome-action-icon: color-mix(in srgb, var(--bg) 8%, transparent);
+  --welcome-focus: var(--text);
+  --welcome-space-1: 8px;
+  --welcome-space-2: 16px;
+  --welcome-space-3: 24px;
+  --welcome-space-4: 32px;
+  --welcome-space-5: 48px;
+  --welcome-space-6: 64px;
+  --welcome-max-width: 1120px;
+  --welcome-copy-width: 760px;
+  --welcome-body-width: 510px;
+  --welcome-heading-size: clamp(36px, 4.7vw, 60px);
+  --welcome-radius: 14px;
+  --welcome-control-height: 60px;
+  --welcome-control-width: 248px;
+  --welcome-background-opacity: 1;
+  --welcome-grid-opacity: 0.3;
+  --welcome-panel: color-mix(in srgb, var(--text) 4%, var(--welcome-bg));
+  --welcome-panel-radius: 24px;
+  --welcome-topic-index: color-mix(in srgb, var(--text) 65%, var(--bg));
+  --welcome-panel-width: 360px;
+  --welcome-touch-target: 44px;
+  --welcome-tablet-width: 620px;
+}

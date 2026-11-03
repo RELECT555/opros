@@ -1,0 +1,5 @@
+.survey-entry { width: 100%; }
+
+@media (max-width: 600px) {
+  .survey-entry .sf-topbar { flex-wrap: wrap; }
+}

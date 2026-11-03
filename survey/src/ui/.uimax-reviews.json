@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "reviews": [
+    {
+      "id": "186367f6-97c5-46ea-ac4e-a53170133af4",
+      "timestamp": "2026-11-02T09:26:41.862Z",
+      "url": "http://127.0.0.1:5175/s/__preview_crm",
+      "codeDir": "C:/Users/knyaz/Documents/GitHub/opros/survey/src/ui",
+      "duration": 10214,
+      "scores": {
+        "lighthouse": {
+          "performance": null,
+          "accessibility": null,
+          "bestPractices": null,
+          "seo": null
+        },
+        "accessibilityViolations": 0,
+        "codeIssues": {
+          "total": 26,
+          "bySeverity": {
+            "critical": 0,
+            "high": 2,
+            "medium": 7,
+            "low": 17
+          }
+        },
+        "performanceMetrics": {
+          "fcp": 2672,
+          "lcp": 2672,
+          "cls": 0,
+          "tbt": 25
+        }
+      },
+      "findings": {
+        "total": 26,
+        "bySeverity": {
+          "critical": 0,
+          "high": 2,
+          "medium": 7,
+          "low": 17
+        },
+        "byCategory": {
+          "accessibility": 2,
+          "code-quality": 19,
+          "performance": 1,
+          "ux": 3,
+          "design": 1
+        },
+        "topFindings": [
+          {
+            "rule": "click-no-keyboard",
+            "severity": "high",
+            "message": "onClick handler without keyboard event handler (onKeyDown/onKeyUp)",
+            "file": "survey\\WelcomeIntro.tsx",
+            "line": 72
+          },
+          {
+            "rule": "click-no-keyboard",
+            "severity": "high",
+            "message": "onClick handler without keyboard event handler (onKeyDown/onKeyUp)",
+            "file": "survey\\BackgroundMotionToggle.tsx",
+            "line": 10
+          },
+          {
+            "rule": "direct-dom-access",
+            "severity": "medium",
+            "message": "Direct DOM access detected in a component file",
+            "file": "survey\\WelcomeIntro.tsx",
+            "line": 32
+          },
+          {
+            "rule": "no-lazy-image",
+            "severity": "medium",
+            "message": "Image without loading=\"lazy\" (may impact initial load)",
+            "file": "survey\\WelcomeIntro.tsx",
+            "line": 48
+          },
+          {
+            "rule": "missing-error-boundary",
+            "severity": "medium",
+            "message": "React component without error boundary in ancestry",
+            "file": "survey\\WelcomeIntro.tsx",
+            "line": 21
+          },
+          {
+            "rule": "deep-nesting",
+            "severity": "medium",
+            "message": "Deep nesting detected (8 levels)",
+            "file": "survey\\WelcomeIntro.tsx",
+            "line": 88
+          },
+          {
+            "rule": "missing-error-boundary",
+            "severity": "medium",
+            "message": "React component without error boundary in ancestry",
+            "file": "survey\\BackgroundMotionToggle.tsx",
+            "line": 3
+          },
+          {
+            "rule": "important-css",
+            "severity": "medium",
+            "message": "!important flag in CSS (specificity issue)",
+            "file": "survey\\welcome-intro.css",
+            "line": 3
+          },
+          {
+            "rule": "no-error-boundary",
+            "severity": "medium",
+            "message": "No ErrorBoundary component found in the project",
+            "file": "(project-level)"
+          },
+          {
+            "rule": "magic-number",
+            "severity": "low",
+            "message": "Magic number in JSX/style (not 0 or 1)",
+            "file": "survey\\WelcomeIntro.tsx",
+            "line": 48
+          }
+        ]
+      },
+      "filesAnalyzed": 4,
+      "filesWithIssues": [
+        "(project-level)",
+        "survey\\BackgroundMotionToggle.tsx",
+        "survey\\WelcomeIntro.tsx",
+        "survey\\welcome-intro.css",
+        "tokens.css"
+      ],
+      "status": "completed",
+      "summary": "Found 26 issues (2 high, 7 medium, 17 low)"
+    }
+  ]
+}
