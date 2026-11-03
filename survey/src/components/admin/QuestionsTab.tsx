@@ -14,7 +14,7 @@ import type {
 } from '../../lib/supabase'
 import { mergeContactsBlockConfig, defaultConsentItemsForEditor } from '../../lib/contactsBlock'
 import { questionMediaHasContent } from '../../lib/questionMedia'
-import { isCanvasSurvey } from '../../lib/surveyCanvas'
+import { isCanvasSurvey, appendSurveyQuestion } from '../../lib/surveyCanvas'
 import { questionsLiveEditHref } from '../../lib/liveEditLinks'
 import { QuestionsTabSkeleton } from './AdminSkeletons'
 
@@ -121,7 +121,6 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
   const saveBarTransition = reduceMotion ? { duration: 0 } : { duration: 0.22, ease: easeOut }
 
   useEffect(() => {
-    setLoading(true)
     getSurveyById(surveyId)
       .then(s => {
         if (!s) return
@@ -131,6 +130,7 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
         setBaselineConfig(cloneConfig(cfg))
         setDirty(false)
       })
+      .catch(e => setSaveError(e instanceof Error ? e.message : 'Ошибка загрузки'))
       .finally(() => setLoading(false))
   }, [surveyId])
 
@@ -168,7 +168,7 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
   }
 
   function addQuestion() {
-    update(c => ({ ...c, questions: [...c.questions, newQuestion()] }))
+    update(c => appendSurveyQuestion(c, newQuestion()))
   }
 
   async function removeQuestion(idx: number) {

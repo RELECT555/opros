@@ -24,7 +24,8 @@ export function QuestionCard({
   liveEdit,
   onLiveEditClick,
 }: QuestionCardProps) {
-  const answer = form.answers[q.id]
+  const rawAnswer = form.answers[q.id]
+  const answer = q.type === 'checkbox' ? (Array.isArray(rawAnswer) ? rawAnswer : []) : (typeof rawAnswer === 'string' ? rawAnswer : '')
   const otherText = (form.answers[q.id + '__other'] ?? '') as string
   const isDone = q.type === 'checkbox'
     ? (answer as string[]).length > 0
@@ -37,6 +38,8 @@ export function QuestionCard({
       initial="enter"
       animate="center"
       exit="exit"
+      role="group"
+      aria-label={q.title}
       className={`card qcard ${isDone ? 'card--done' : ''}${liveEdit ? ' qcard--live-edit' : ''}`}
     >
       <div className={`qcard-stripe ${isDone ? 'qcard-stripe--done' : ''}`} />
@@ -94,7 +97,7 @@ export function QuestionCard({
                 return (
                   <motion.button type="button"
                     key={opt}
-                    className={`checkbox-row ${sel ? 'checkbox-row--on' : ''}`}
+                    aria-pressed={sel} className={`checkbox-row ${sel ? 'checkbox-row--on' : ''}`}
                     onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: toggle(answer as string[], opt) } })}
                     whileTap={{ scale: 0.985 }}
                   >
@@ -134,7 +137,7 @@ export function QuestionCard({
             {q.options.map(opt => {
               const sel = (answer as string[]).includes(opt)
               return (
-                <motion.button type="button" key={opt} className={`chip ${sel ? 'chip--on' : ''}`} onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: toggle(answer as string[], opt) } })} whileTap={{ scale: 0.94 }}>
+                <motion.button type="button" key={opt} aria-pressed={sel} className={`chip ${sel ? 'chip--on' : ''}`} onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: toggle(answer as string[], opt) } })} whileTap={{ scale: 0.94 }}>
                   <span className="chip-ctrl">
                     <AnimatePresence>
                       {sel && (
@@ -152,7 +155,7 @@ export function QuestionCard({
               const sel = (answer as string[]).includes('__other__')
               return (
                 <>
-                  <motion.button type="button" className={`chip ${sel ? 'chip--on' : ''}`} onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: toggle(answer as string[], '__other__') } })} whileTap={{ scale: 0.94 }}>
+                  <motion.button type="button" aria-pressed={sel} className={`chip ${sel ? 'chip--on' : ''}`} onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: toggle(answer as string[], '__other__') } })} whileTap={{ scale: 0.94 }}>
                     <span className="chip-ctrl">
                       <AnimatePresence>
                         {sel && (
@@ -187,7 +190,7 @@ export function QuestionCard({
       {q.type === 'radio' && q.optionsLayout !== 'list' && (
         <div className="chips chips--grid">
           {q.options.map((opt) => (
-            <motion.button type="button" key={opt} className={`chip ${answer === opt ? 'chip--on' : ''}`} onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: opt } })} whileTap={{ scale: 0.94 }}>
+            <motion.button type="button" key={opt} aria-pressed={answer === opt} className={`chip ${answer === opt ? 'chip--on' : ''}`} onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: opt } })} whileTap={{ scale: 0.94 }}>
               <span className="chip-ctrl">
                 <AnimatePresence>
                   {answer === opt && (
@@ -204,7 +207,7 @@ export function QuestionCard({
       {q.type === 'radio' && q.optionsLayout === 'list' && (
         <div className="radio-list">
           {q.options.map((opt, i) => (
-            <motion.button type="button" key={opt} className={`radio-btn ${answer === opt ? 'radio-btn--on' : ''}`} onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: opt } })} whileTap={{ scale: 0.985 }}>
+            <motion.button type="button" key={opt} aria-pressed={answer === opt} className={`radio-btn ${answer === opt ? 'radio-btn--on' : ''}`} onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: opt } })} whileTap={{ scale: 0.985 }}>
               <span className="radio-circle">
                 <AnimatePresence>
                   {answer === opt && (
@@ -225,7 +228,7 @@ export function QuestionCard({
             const sel = answer === '__other__'
             return (
               <>
-                <motion.button type="button" className={`radio-btn ${sel ? 'radio-btn--on' : ''}`} onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: '__other__' } })} whileTap={{ scale: 0.985 }}>
+                <motion.button type="button" aria-pressed={sel} className={`radio-btn ${sel ? 'radio-btn--on' : ''}`} onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: '__other__' } })} whileTap={{ scale: 0.985 }}>
                   <span className="radio-circle">
                     <AnimatePresence>
                       {sel && (
@@ -277,14 +280,14 @@ export function QuestionCard({
         const max = q.scaleMax ?? 10
         const ticks = Array.from({ length: max - min + 1 }, (_, i) => i + min)
         const selected = answer ? Number(answer) : null
-        const fillPct = selected !== null ? ((selected - min) / (max - min)) * 100 : 0
+        const fillPct = selected !== null ? ((selected - min) / Math.max(1, max - min)) * 100 : 0
         return (
           <div className="scale-wrap">
             <div className="scale-track-wrap">
               <div className="scale-track">
                 <motion.div className="scale-track-fill" animate={{ width: selected !== null ? `${fillPct}%` : '0%' }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} />
                 {selected !== null && (
-                  <motion.div className="scale-thumb" animate={{ left: `${fillPct}%` }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} style={{ background: scaleColor((selected - min) / (max - min)) }}>
+                  <motion.div className="scale-thumb" animate={{ left: `${fillPct}%` }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} style={{ background: scaleColor((selected - min) / Math.max(1, max - min)) }}>
                     <span className="scale-thumb-val">{selected}</span>
                   </motion.div>
                 )}
@@ -295,6 +298,7 @@ export function QuestionCard({
                     type="button"
                     key={n}
                     className="scale-tick-zone"
+                    aria-pressed={selected === n}
                     onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: String(n) } })}
                     aria-label={String(n)}
                   />
@@ -309,8 +313,9 @@ export function QuestionCard({
                   <button
                     type="button"
                     key={n}
+                    aria-pressed={isOn}
                     className={`scale-num ${isOn ? 'scale-num--on' : ''} ${isPast && !isOn ? 'scale-num--past' : ''}`}
-                    style={isOn ? { color: scaleColor((n - min) / (max - min)) } : {}}
+                    style={isOn ? { color: scaleColor((n - min) / Math.max(1, max - min)) } : {}}
                     onClick={() => setForm({ ...form, answers: { ...form.answers, [q.id]: String(n) } })}
                   >
                     {isOn ? <span>{n}</span> : n}

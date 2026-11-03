@@ -125,8 +125,10 @@ export function DynamicSurveyForm({
   }
 
   function isAnswered(q: SurveyQuestion): boolean {
-    if (q.type === 'checkbox') return (form.answers[q.id] as string[]).length > 0
-    return !!form.answers[q.id]
+    if (!q) return false
+    const answer = form.answers[q.id]
+    if (q.type === 'checkbox') return Array.isArray(answer) && answer.length > 0
+    return typeof answer === 'string' && answer.trim().length > 0
   }
 
   function questionsOnCanvasPage(page: SurveyCanvasPage): SurveyQuestion[] {
@@ -148,12 +150,12 @@ export function DynamicSurveyForm({
   }
 
   const contactsDone = contactsStepComplete(form, contactsBlock)
-  const isLastStep = step === totalSteps - 1
+  const isLastStep = totalSteps === 0 || step === totalSteps - 1
 
   const canGoNext = canvasMode
     ? (step < contentPageCount ? canvasPageDone(canvasContentPages![step]!) : contactsDone)
     : (contactsDisabled
-        ? isAnswered(questions[step]!)
+        ? (!questions[step] || isAnswered(questions[step]!))
         : (step < questions.length ? isAnswered(questions[step]!) : contactsDone))
 
   const steps = canvasMode
@@ -219,7 +221,9 @@ export function DynamicSurveyForm({
         </>
       ) : !allRequiredConsentsChecked(form, contactsBlock)
         ? contactsBlock.submitHintNeedConsents
-        : contactsBlock.submitHintNeedContacts}
+        : !contactsStepComplete(form, contactsBlock)
+          ? contactsBlock.submitHintNeedContacts
+          : 'Ответьте на все вопросы'}
     </motion.button>
   )
 
@@ -645,7 +649,7 @@ export function DynamicSurveyForm({
                     {consentCards}
                   </div>
                 )}
-                {status === 'error' && <p className="err-msg">{errorMsg}</p>}
+                {status === 'error' && <p className="err-msg" role="alert">{errorMsg}</p>}
                 {submitButtonEl}
                 <button type="button" className="sf-nav-btn sf-nav-btn--back" onClick={goPrev} disabled={step === 0}>
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -694,7 +698,7 @@ export function DynamicSurveyForm({
           )}
           <div className="sf-nav-submit-wrap">
             {!contactsDisabled && consentCards}
-            {status === 'error' && <p className="err-msg">{errorMsg}</p>}
+            {status === 'error' && <p className="err-msg" role="alert">{errorMsg}</p>}
             {submitButtonEl}
           </div>
         </motion.div>

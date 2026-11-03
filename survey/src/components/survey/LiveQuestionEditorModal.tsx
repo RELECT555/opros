@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { SurveyQuestion, QuestionMediaKind } from '../../lib/supabase'
@@ -171,13 +171,6 @@ export function LiveQuestionEditorModal({ open, question, questionIndex, onClose
   const [draft, setDraft] = useState<SurveyQuestion>(() => cloneQuestion(question))
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
-
-  useEffect(() => {
-    if (open) {
-      setDraft(cloneQuestion(question))
-      setErr('')
-    }
-  }, [open, question])
 
   async function handleSave() {
     setSaving(true)

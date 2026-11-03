@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
 import { getSurveyById, updateSurveyConfig } from '../../lib/api-client'
 import type {
@@ -59,21 +59,23 @@ export function CanvasBuilderTab({
   const [survey, setSurvey] = useState<Survey | null>(null)
   const [config, setConfig] = useState<SurveyConfigData | null>(null)
   const [baseline, setBaseline] = useState<SurveyConfigData | null>(null)
-  const [panel, setPanel] = useState<BuilderPanel>('pages')
+  const [panel, setPanel] = useState<BuilderPanel>(openDesignPanelOnMount ? 'design' : 'pages')
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [err, setErr] = useState('')
-  const selectedPageIdRef = useRef<string | null>(null)
-  selectedPageIdRef.current = selectedPageId
+  const [designRequest, setDesignRequest] = useState(openDesignPanelOnMount)
+  if (designRequest !== openDesignPanelOnMount) {
+    setDesignRequest(openDesignPanelOnMount)
+    if (openDesignPanelOnMount) setPanel('design')
+  }
 
   const dirty =
     config && baseline ? JSON.stringify(config) !== JSON.stringify(baseline) : false
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
     getSurveyById(surveyId)
       .then(s => {
         if (cancelled || !s) return
@@ -98,24 +100,9 @@ export function CanvasBuilderTab({
     }
   }, [surveyId])
 
-  useLayoutEffect(() => {
-    setPanel('pages')
-  }, [surveyId])
-
-  useLayoutEffect(() => {
-    if (!openDesignPanelOnMount) return
-    setPanel('design')
-    onConsumedDesignPanelMount?.()
-  }, [openDesignPanelOnMount, onConsumedDesignPanelMount])
-
   useEffect(() => {
-    if (!config?.canvas?.pages.length) return
-    const cur = selectedPageIdRef.current
-    if (cur && config.canvas.pages.some(p => p.id === cur)) return
-    const pick =
-      config.canvas.pages.find(p => p.role === 'content') ?? config.canvas.pages[0] ?? null
-    setSelectedPageId(pick?.id ?? null)
-  }, [config])
+    if (openDesignPanelOnMount) onConsumedDesignPanelMount?.()
+  }, [openDesignPanelOnMount, onConsumedDesignPanelMount])
 
   const update = useCallback((fn: (c: SurveyConfigData) => SurveyConfigData) => {
     setConfig(c => (c ? fn(c) : c))
@@ -162,7 +149,7 @@ export function CanvasBuilderTab({
       if (!page || page.role !== 'content') return c
       return { ...c, canvas: { pages: c.canvas.pages.filter(p => p.id !== pageId) } }
     })
-    if (selectedPageIdRef.current === pageId) setSelectedPageId(null)
+    if (selectedPageId === pageId) setSelectedPageId(null)
   }
 
   function movePage(pageId: string, dir: -1 | 1) {

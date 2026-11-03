@@ -78,8 +78,6 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    setErr(null)
     getSurveyById(surveyId)
       .then(s => {
         if (cancelled || !s) return

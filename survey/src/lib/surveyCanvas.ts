@@ -351,7 +351,7 @@ export function stepWidthClassForQuestionId(cfg: SurveyConfigData, questionId: s
 
 /**
  * Порядок вопросов для прохождения опроса: по страницам и блокам конструктора,
- * затем вопросы, не попавшие в схему.
+ * Вопросы вне контентных страниц не показываются и не требуют ответа.
  */
 export function orderedQuestionsFromCanvas(cfg: SurveyConfigData): SurveyQuestion[] {
   const base = cfg.questions ?? []
@@ -373,10 +373,16 @@ export function orderedQuestionsFromCanvas(cfg: SurveyConfigData): SurveyQuestio
     }
   }
 
-  for (const q of base) {
-    if (!seen.has(q.id)) ordered.push(q)
-  }
   return ordered
+}
+
+export function appendSurveyQuestion(cfg: SurveyConfigData, question: SurveyQuestion): SurveyConfigData {
+  if (!isCanvasSurvey(cfg)) return { ...cfg, questions: [...(cfg.questions ?? []), question] }
+  const page = getContentPages(cfg).at(-1)
+  if (page) return appendQuestionBlockOnPage(cfg, page.id, question)
+  const pageId = `page_${question.id}`
+  const withPage = { ...cfg, canvas: { pages: [...cfg.canvas!.pages, { id: pageId, role: 'content' as const, title: 'Страница 1', blocks: [] }] } }
+  return appendQuestionBlockOnPage(withPage, pageId, question)
 }
 
 export function countQuestionRefsInCanvas(canvas: SurveyCanvas | undefined, questionId: string): number {

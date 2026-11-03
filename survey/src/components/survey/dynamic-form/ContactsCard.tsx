@@ -16,7 +16,7 @@ interface ContactsCardProps {
 export function ContactsCard({ block, form, setForm, questionsCount, token, dir }: ContactsCardProps) {
   const done = contactsStepComplete(form, block)
   const { fields } = block
-  const showEmail = fields.email.enabled && (!token || !block.hideEmailWhenToken)
+  const showEmail = fields.email.enabled && (!token || !block.hideEmailWhenToken || !form.email.trim())
 
   const rowHalf =
     fields.name.enabled && fields.phone.enabled
@@ -71,7 +71,7 @@ export function ContactsCard({ block, form, setForm, questionsCount, token, dir 
                   <path d="M2 12c0-2.2 2.2-4 5-4s5 1.8 5 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                 </svg>
               </span>
-              <input id="dyn-name" type="text" placeholder={fields.name.placeholder} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+              <input id="dyn-name" required={fields.name.required} maxLength={200} type="text" placeholder={fields.name.placeholder} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
             </div>
           </div>
         )}
@@ -85,7 +85,7 @@ export function ContactsCard({ block, form, setForm, questionsCount, token, dir 
                   <circle cx="7" cy="10" r="0.6" fill="currentColor" />
                 </svg>
               </span>
-              <input id="dyn-phone" type="tel" placeholder={fields.phone.placeholder} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+              <input id="dyn-phone" required={fields.phone.required} maxLength={30} type="tel" placeholder={fields.phone.placeholder} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
             </div>
           </div>
         )}
@@ -104,7 +104,7 @@ export function ContactsCard({ block, form, setForm, questionsCount, token, dir 
                   <path d="M1.5 5l5.5 3.5L12.5 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                 </svg>
               </span>
-              <input id="dyn-email" type="email" placeholder={fields.email.placeholder} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+              <input id="dyn-email" required={fields.email.required} maxLength={200} type="email" placeholder={fields.email.placeholder} value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
             </div>
           </div>
         )}
@@ -116,7 +116,7 @@ export function ContactsCard({ block, form, setForm, questionsCount, token, dir 
                 <span className="optional"> (необязательно)</span>
               ) : null}
             </label>
-            <textarea id="dyn-comment" placeholder={fields.comment.placeholder} value={form.comment} onChange={e => setForm({ ...form, comment: e.target.value })} rows={3} />
+            <textarea id="dyn-comment" required={fields.comment.required} maxLength={2000} placeholder={fields.comment.placeholder} value={form.comment} onChange={e => setForm({ ...form, comment: e.target.value })} rows={3} />
           </div>
         )}
       </div>
