@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
-import { getSurveyById, updateSurveyConfig } from '../../lib/api-client'
+import { ApiError, getSurveyById, updateSurveyConfig } from '../../lib/api-client'
 import type {
   Survey,
   SurveyConfigData,
@@ -17,6 +17,9 @@ import { CanvasBuilderTabSkeleton } from './AdminSkeletons'
 import { SavedIcon } from './AdminFormParts'
 import { DesignTab } from './DesignTab'
 import { prepareConstructorLiveEditUrl } from '../../lib/liveEditLinks'
+import { useSurveyEditorDraft } from '../../lib/useSurveyEditorDraft'
+import { downloadEditorDraft } from '../../lib/editorDraft'
+import { EditorDraftNotice } from './EditorDraftNotice'
 
 type BuilderPanel = 'pages' | 'design'
 
@@ -38,10 +41,6 @@ function newQuestion(): SurveyQuestion {
   }
 }
 
-function cloneConfig(c: SurveyConfigData): SurveyConfigData {
-  return JSON.parse(JSON.stringify(c)) as SurveyConfigData
-}
-
 function newBlock(kind: SurveyCanvasBlock['type'], questionId?: string): SurveyCanvasBlock {
   const id = `b_${Date.now()}`
   if (kind === 'text') return { id, type: 'text', body: 'Текст', align: 'left' }
@@ -57,8 +56,8 @@ export function CanvasBuilderTab({
   onConsumedDesignPanelMount,
 }: Props) {
   const [survey, setSurvey] = useState<Survey | null>(null)
-  const [config, setConfig] = useState<SurveyConfigData | null>(null)
-  const [baseline, setBaseline] = useState<SurveyConfigData | null>(null)
+  const editor = useSurveyEditorDraft<SurveyConfigData | null>(surveyId, 'canvas', null)
+  const { draft, value: config, dirty, revision, conflict } = editor
   const [panel, setPanel] = useState<BuilderPanel>(openDesignPanelOnMount ? 'design' : 'pages')
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -71,61 +70,75 @@ export function CanvasBuilderTab({
     if (openDesignPanelOnMount) setPanel('design')
   }
 
-  const dirty =
-    config && baseline ? JSON.stringify(config) !== JSON.stringify(baseline) : false
-
   useEffect(() => {
     let cancelled = false
     getSurveyById(surveyId)
       .then(s => {
         if (cancelled || !s) return
         setSurvey(s)
-        const cfg = s.config
-        if (!isCanvasSurvey(cfg)) {
-          setConfig(null)
-          setBaseline(null)
-          return
-        }
-        setConfig(cloneConfig(cfg))
-        setBaseline(cloneConfig(cfg))
-        const firstContent = cfg.canvas!.pages.find(p => p.role === 'content')
-        setSelectedPageId(firstContent?.id ?? cfg.canvas!.pages[0]?.id ?? null)
+        draft.load(isCanvasSurvey(s.config) ? s.config : null, s.revision)
+        const pages = draft.getSnapshot().value?.canvas?.pages ?? []
+        const firstContent = pages.find(p => p.role === 'content')
+        setSelectedPageId(firstContent?.id ?? pages[0]?.id ?? null)
       })
-      .catch(() => {})
+      .catch(error => { if (!cancelled) setErr(error instanceof Error ? error.message : 'Ошибка загрузки') })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [surveyId])
+  }, [surveyId, draft])
 
   useEffect(() => {
     if (openDesignPanelOnMount) onConsumedDesignPanelMount?.()
   }, [openDesignPanelOnMount, onConsumedDesignPanelMount])
 
   const update = useCallback((fn: (c: SurveyConfigData) => SurveyConfigData) => {
-    setConfig(c => (c ? fn(c) : c))
+    draft.change(c => (c ? fn(c) : c))
     setSaved(false)
-  }, [])
+  }, [draft])
 
   async function save() {
-    if (!survey || !config || !dirty) return
+    if (!survey || !config || !dirty || revision === null || saving || conflict) return
+    const snapshot = structuredClone(config)
     setSaving(true)
     setErr('')
     try {
-      await updateSurveyConfig(survey.id, config)
-      setBaseline(cloneConfig(config))
-      const next = { ...survey, config }
+      const next = await updateSurveyConfig(survey.id, snapshot, revision)
+      draft.saved(snapshot, revision, next.revision)
       setSurvey(next)
       onSurveyUpdate(next)
-      setSaved(true)
+      setSaved(!draft.getSnapshot().dirty)
       setTimeout(() => setSaved(false), 1600)
     } catch (e: unknown) {
+      if (e instanceof ApiError && e.status === 409) draft.markConflict()
       setErr(e instanceof Error ? e.message : 'Ошибка сохранения')
     } finally {
       setSaving(false)
     }
+  }
+
+  async function reloadServer() {
+    if (saving) return
+    setSaving(true)
+    try {
+      const next = await getSurveyById(surveyId)
+      if (!next) throw new Error('Опросник не найден')
+      draft.load(isCanvasSurvey(next.config) ? next.config : null, next.revision, true)
+      setSurvey(next)
+      onSurveyUpdate(next)
+      setSaved(false)
+      setErr('')
+    } catch (error) { setErr(error instanceof Error ? error.message : 'Ошибка загрузки') }
+    finally { setSaving(false) }
+  }
+
+  function handleDesignUpdate(next: Survey) {
+    setSurvey(next)
+    if (draft.getSnapshot().dirty) draft.markConflict()
+    else draft.load(next.config, next.revision, true)
+    onSurveyUpdate(next)
   }
 
   function addContentPage() {
@@ -252,6 +265,8 @@ export function CanvasBuilderTab({
 
   return (
     <div className="adm-tab-content canvas-builder">
+      {panel === 'pages' && <EditorDraftNotice restored={editor.restored} conflict={conflict} storageError={editor.storageError} busy={saving}
+        onReload={reloadServer} onDownload={() => downloadEditorDraft(surveyId, 'canvas', revision, config)} />}
       <div className="qed-header">
         <div className="qed-header-row">
           <div className="qed-header-left">
@@ -285,7 +300,7 @@ export function CanvasBuilderTab({
               <button
                 type="button"
                 className="qed-save-bar-btn"
-                disabled={!dirty || saving}
+                disabled={!dirty || saving || conflict}
                 onClick={() => void save()}
               >
                 {saving ? <span className="adm-spinner adm-spinner--sm" /> : 'Сохранить'}
@@ -338,10 +353,10 @@ export function CanvasBuilderTab({
         </div>
       )}
 
-      {err && panel === 'pages' && <p className="adm-err-banner">{err}</p>}
+      {err && panel === 'pages' && <p className="adm-err-banner" role="alert">{err}</p>}
 
       {panel === 'design' ? (
-        <DesignTab surveyId={surveyId} onSurveyUpdate={onSurveyUpdate} />
+        <DesignTab surveyId={surveyId} onSurveyUpdate={handleDesignUpdate} />
       ) : (
         <div className="canvas-builder-layout">
         <aside className="canvas-builder-sidebar">

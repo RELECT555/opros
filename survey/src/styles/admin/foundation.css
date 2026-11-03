@@ -1,0 +1,396 @@
+/* ── Design tokens (same as App.css) ── */
+.adm-root, .adm-center {
+  --bg:        #07070d;
+  --surface:   rgba(16, 16, 26, 0.75);
+  --surface-2: color-mix(in srgb, var(--surface) 78%, var(--adm-a08) 22%);
+  --border:    var(--adm-a07);
+  --border-hi: var(--adm-a13);
+  --accent:     #5b73f9;
+  --accent-2:   #9b6dff;
+  --accent-rgb: 91,115,249;
+  --accent-2-rgb: 155,109,255;
+  --text:       #eaeaf8;
+  --text-2:    #8a8aaa;
+  --text-3:    #48485e;
+  --ok:        #22c55e;
+  --r:         14px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.adm-root[data-adm-mode="light"],
+.adm-center[data-adm-mode="light"] {
+  --surface: #ffffff;
+  --surface-2: color-mix(in srgb, #f8fafc 92%, var(--text) 8%);
+  --text: #0f172a;
+  --text-2: #475569;
+  --text-3: #94a3b8;
+}
+
+.adm-root[data-adm-mode="light"] .adm-orb {
+  opacity: 0.11;
+  filter: blur(88px);
+}
+
+.adm-root[data-adm-mode="light"] .adm-grid {
+  opacity: 0.85;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--accent) 8%, var(--adm-a022)) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, var(--adm-a022)) 1px, transparent 1px);
+}
+
+.adm-root[data-adm-mode="light"] .adm-sidebar {
+  background: color-mix(in srgb, #ffffff 78%, var(--bg) 22%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 72px rgba(var(--accent-rgb), 0.065),
+    inset 0 0 120px rgba(var(--accent-rgb), 0.035),
+    12px 0 44px -12px rgba(var(--accent-rgb), 0.13),
+    18px 0 80px -24px color-mix(in srgb, var(--accent-2) 22%, transparent),
+    10px 0 28px -12px rgba(15, 23, 42, 0.06);
+}
+
+.adm-root[data-adm-mode="light"] .adm-sidebar::before {
+  background:
+    radial-gradient(
+      ellipse 125% 58% at -18% 6%,
+      rgba(var(--accent-rgb), 0.14) 0%,
+      transparent 56%
+    ),
+    radial-gradient(
+      ellipse 90% 45% at 10% 92%,
+      color-mix(in srgb, var(--accent-2) 18%, transparent) 0%,
+      transparent 52%
+    );
+}
+
+.adm-root[data-adm-mode="light"] .adm-card,
+.adm-root[data-adm-mode="light"] .qed-welcome-card,
+.adm-root[data-adm-mode="light"] .set-card {
+  background: linear-gradient(
+    165deg,
+    #ffffff 0%,
+    color-mix(in srgb, #ffffff 94%, rgba(var(--accent-rgb), 1) 6%) 48%,
+    color-mix(in srgb, #ffffff 97%, rgba(var(--accent-rgb), 1) 3%) 100%
+  );
+  border: 1px solid color-mix(in srgb, rgba(var(--accent-rgb), 1) 12%, var(--adm-a08));
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 10px 32px rgba(15, 23, 42, 0.07),
+    0 0 0 1px rgba(255, 255, 255, 0.75) inset,
+    0 0 40px -6px rgba(var(--accent-rgb), 0.14),
+    0 0 72px -12px color-mix(in srgb, var(--accent-2) 18%, transparent);
+}
+
+.adm-root[data-adm-mode="light"] .adm-card--open {
+  border-color: rgba(var(--accent-rgb), 0.26);
+  box-shadow:
+    0 12px 40px rgba(15, 23, 42, 0.09),
+    0 4px 16px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 #fff,
+    0 0 0 1px rgba(var(--accent-rgb), 0.1),
+    0 0 48px -4px rgba(var(--accent-rgb), 0.2),
+    0 0 96px -16px color-mix(in srgb, var(--accent-2) 22%, transparent);
+}
+
+.adm-root[data-adm-mode="light"] .adm-kpi-row {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.adm-root[data-adm-mode="light"] .adm-funnel-strip {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.adm-root[data-adm-mode="light"] .qed-welcome-left {
+  background: rgba(var(--accent-rgb), 0.04);
+}
+
+/* ── Lightweight FX mode (less paint/GPU load) ── */
+html[data-adm-fx="lite"] .adm-root,
+html[data-adm-fx="lite"] .adm-center {
+  --adm-fx-blur-login: 10px;
+  --adm-fx-blur-sidebar: 6px;
+}
+
+html[data-adm-fx="lite"] .adm-orb,
+html[data-adm-fx="lite"] .adm-grid,
+html[data-adm-fx="lite"] .ls-orb,
+html[data-adm-fx="lite"] .adm-bg-scene .adm-orb,
+html[data-adm-fx="lite"] .adm-login-topbar {
+  animation: none !important;
+}
+
+html[data-adm-fx="lite"] .adm-orb {
+  filter: blur(36px);
+  opacity: 0.08;
+}
+
+html[data-adm-fx="lite"] .adm-sidebar,
+html[data-adm-fx="lite"] .adm-login-card,
+html[data-adm-fx="lite"] .qed-save-bar,
+html[data-adm-fx="lite"] .adm-card,
+html[data-adm-fx="lite"] .set-card,
+html[data-adm-fx="lite"] .dsg-controls-inner {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: 0 1px 0 var(--adm-a08) inset, 0 10px 28px rgba(0, 0, 0, 0.22) !important;
+}
+
+html[data-adm-mode="light"] .ls-root {
+  background: linear-gradient(165deg, #fafbfc 0%, #f4f5f7 50%, #f9fafb 100%);
+}
+html[data-adm-mode="light"] .ls-card {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--adm-a08);
+  box-shadow:
+    0 0 0 1px var(--adm-a04) inset,
+    0 1px 0 var(--adm-a10) inset,
+    0 40px 80px var(--adm-shadow-25),
+    0 0 60px rgba(91, 115, 249, 0.06);
+}
+html[data-adm-mode="light"] .ls-title {
+  color: #0f172a;
+}
+html[data-adm-mode="light"] .ls-brand {
+  color: #64748b;
+}
+
+/* ── Background ── */
+.adm-bg-scene {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.adm-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+  animation: admOrbFloat 20s ease-in-out infinite;
+}
+.adm-orb--1 {
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+  top: -200px; left: -150px;
+}
+.adm-orb--2 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, var(--accent-2) 0%, transparent 70%);
+  bottom: -100px; right: -100px;
+  animation-delay: -10s; animation-duration: 26s;
+}
+@keyframes admOrbFloat {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33%      { transform: translate(20px,-30px) scale(1.04); }
+  66%      { transform: translate(-15px,20px) scale(0.97); }
+}
+
+.adm-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(var(--adm-a022) 1px, transparent 1px),
+    linear-gradient(90deg, var(--adm-a022) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 30%, transparent 100%);
+}
+
+/* ── Login ── */
+.adm-center {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  position: relative;
+}
+
+.adm-login-card {
+  position: relative;
+  z-index: 1;
+  background: rgba(10, 10, 20, 0.85);
+  border: 1px solid var(--adm-a08);
+  border-radius: 24px;
+  width: 400px;
+  overflow: hidden;
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  box-shadow:
+    0 0 0 1px var(--adm-a03) inset,
+    0 40px 80px rgba(0,0,0,0.6),
+    0 0 60px rgba(91,115,249,0.06);
+  display: flex;
+  flex-direction: column;
+}
+.adm-login-card--error {
+  box-shadow:
+    0 0 0 1px rgba(248,113,113,0.15) inset,
+    0 40px 80px rgba(0,0,0,0.6),
+    0 0 40px rgba(248,113,113,0.08);
+}
+
+/* top accent bar */
+.adm-login-topbar {
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), #9b6dff, var(--accent-2, #9b6dff));
+  background-size: 200% 100%;
+  animation: admShift 4s linear infinite;
+}
+@keyframes admShift {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+
+/* header block */
+.adm-login-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 36px 36px 24px;
+  gap: 8px;
+}
+
+.adm-login-logo {
+  width: 52px; height: 52px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(91,115,249,0.2), rgba(155,109,255,0.1));
+  border: 1px solid rgba(91,115,249,0.25);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent);
+  margin-bottom: 8px;
+  box-shadow: 0 8px 24px rgba(91,115,249,0.15);
+}
+
+.adm-login-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--text);
+  margin: 0;
+}
+
+.adm-login-sub {
+  font-size: 13.5px;
+  color: var(--text-3);
+  margin: 0;
+}
+
+.adm-login-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--adm-a06) 30%, var(--adm-a06) 70%, transparent);
+  margin: 0 36px;
+}
+
+.adm-login-form {
+  padding: 24px 36px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* password input with icons */
+.adm-pw-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.adm-pw-icon-left {
+  position: absolute;
+  left: 14px;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.adm-pw-input {
+  background: var(--adm-a04);
+  border: 1px solid var(--adm-a09);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 14px;
+  padding: 12px 42px 12px 42px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  letter-spacing: 0.05em;
+}
+.adm-pw-input::placeholder {
+  color: var(--text-3);
+  letter-spacing: normal;
+}
+.adm-pw-input:focus {
+  border-color: rgba(91,115,249,0.45);
+  background: var(--adm-a06);
+  box-shadow: 0 0 0 3px rgba(91,115,249,0.1);
+}
+.adm-pw-input.adm-input--error {
+  border-color: rgba(248,113,113,0.5) !important;
+  box-shadow: 0 0 0 3px rgba(248,113,113,0.1) !important;
+}
+
+.adm-pw-toggle {
+  position: absolute;
+  right: 12px;
+  background: none; border: none; padding: 5px;
+  color: var(--text-3);
+  cursor: pointer;
+  display: flex; align-items: center;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+.adm-pw-toggle:hover { color: var(--text-2); background: var(--adm-a05); }
+
+/* login button */
+.adm-login-btn {
+  width: 100%;
+  height: 48px;
+  background: linear-gradient(135deg, var(--accent) 0%, #7b5fe0 100%);
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: filter 0.2s, box-shadow 0.2s, opacity 0.2s;
+  box-shadow: 0 4px 20px rgba(91,115,249,0.3), 0 1px 0 var(--adm-a10) inset;
+  position: relative;
+  overflow: hidden;
+}
+.adm-login-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--adm-a08) 0%, transparent 100%);
+  border-radius: inherit;
+}
+.adm-login-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 6px 28px rgba(91,115,249,0.45), 0 1px 0 var(--adm-a10) inset;
+}
+.adm-login-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.adm-login-spinner {
+  width: 18px; height: 18px;
+  border: 2px solid var(--adm-a25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: admSpin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes admSpin { to { transform: rotate(360deg); } }
+
+/* Стабильная ширина при появлении вертикального скролла (раскрытие заявок и т.п.) */
+html:has(.adm-root) {
+  scrollbar-gutter: stable;
+}
+

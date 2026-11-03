@@ -4,6 +4,7 @@ import { questionMediaHasContent } from '../../../lib/questionMedia'
 import { QuestionMediaBlock } from '../QuestionMediaBlock'
 import type { DynamicFormData, DynamicSetForm } from './types'
 import { scaleColor, slideVariants, toggle } from './utils'
+import { scaleValues } from '../../../domain/scaleRange'
 
 interface QuestionCardProps {
   q: SurveyQuestion
@@ -278,7 +279,7 @@ export function QuestionCard({
       {q.type === 'scale' && (() => {
         const min = q.scaleMin ?? 1
         const max = q.scaleMax ?? 10
-        const ticks = Array.from({ length: max - min + 1 }, (_, i) => i + min)
+        const ticks = scaleValues(min, max)
         const selected = answer ? Number(answer) : null
         const fillPct = selected !== null ? ((selected - min) / Math.max(1, max - min)) * 100 : 0
         return (

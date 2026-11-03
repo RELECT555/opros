@@ -12,6 +12,8 @@ import { supabase } from './supabase'
 import { ADMIN_JWT_STORAGE_KEY, clearAdminAuthenticated, markAdminAuthenticated } from './adminSession'
 import { API_BASE_URL } from './apiBaseUrl'
 import { canUseWelcomeFixture } from './devFixtureAccess'
+import { ApiError } from './apiError'
+export { ApiError } from './apiError'
 
 export type { Survey, SurveyConfigData, SurveyRecord, TokenRecord, ResponseStatus, ManualLeadRecord, LeadProjectRecord }
 export { PAGE_SIZE } from './supabase'
@@ -69,7 +71,7 @@ async function _fetch<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(body.error ?? `HTTP ${res.status}`)
+    throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status, body.code, body.current_revision)
   }
 
   if (res.status === 204) return undefined as T
@@ -163,9 +165,7 @@ export async function getSurveys(): Promise<Survey[]> {
 }
 
 /**
- * Публичная страница опроса: сначала Supabase (быстро, без бэкенда).
- * Если с клиента Supabase недоступен (нет VITE_* на билде, RLS, сеть) или строка не найдена —
- * при наличии VITE_API_URL пробуем GET /api/surveys/:slug.
+ * Public survey data always uses the API; the reserved local fixture is opt-in.
  */
 export async function getSurveyBySlug(slug: string): Promise<Survey | null> {
   if (!slug.trim()) return null
@@ -193,10 +193,10 @@ export async function createSurvey(input: {
   })
 }
 
-export async function updateSurveyConfig(id: number, config: SurveyConfigData): Promise<void> {
-  await _fetch(`/api/admin/surveys/${id}/config`, {
+export async function updateSurveyConfig(id: number, config: SurveyConfigData, expectedRevision: number): Promise<Survey> {
+  return _fetch(`/api/admin/surveys/${id}/config`, {
     method: 'PUT',
-    body: JSON.stringify({ config }),
+    body: JSON.stringify({ config, expected_revision: expectedRevision }),
   })
 }
 
@@ -372,7 +372,7 @@ export async function saveSurveyResponseGeneric(data: GenericSurveyResponse): Pr
   if (data.surveyId === -1) throw new Error('Локальный пример: ответы не отправляются и не сохраняются.')
   await _fetch('/api/responses', {
     method: 'POST',
-    body: JSON.stringify({ survey_id: data.surveyId, answers: data.answers,
+    body: JSON.stringify({ survey_id: data.surveyId, survey_revision: data.surveyRevision, answers: data.answers,
       name: data.name, phone: data.phone, email: data.email,
       comment: data.comment, token: data.token }),
   })

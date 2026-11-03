@@ -1,0 +1,76 @@
+/* ── Welcome screen ── */
+.welcome-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  /* Отступ сверху под фиксированный логотип; контент не центрируем по экрану — иначе «висит» низко */
+  padding: max(88px, env(safe-area-inset-top, 0px) + 56px) 24px max(40px, env(safe-area-inset-bottom, 0px) + 28px);
+  justify-content: flex-start;
+}
+
+/* Сгруппированный блок: ровные интервалы, без «провалов» к низу экрана */
+.welcome-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  max-width: 40rem;
+  margin: 0 auto;
+  gap: 1.125rem;
+}
+
+.welcome-logo {
+  max-height: 48px;
+  max-width: 160px;
+  object-fit: contain;
+  margin-bottom: 8px;
+  border-radius: 8px;
+}
+
+.welcome-brand {
+  position: fixed;
+  top: 24px;
+  left: 28px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.2s;
+}
+
+/* Логотип в шапке лендинга (внутри .lp-topbar), без fixed-позиционирования */
+.welcome-brand--inline {
+  position: static;
+  z-index: auto;
+}
+
+.lp-topbar {
+  position: fixed;
+  top: 20px;
+  left: 28px;
+  right: 28px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lp-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+

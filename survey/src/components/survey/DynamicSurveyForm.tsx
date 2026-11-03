@@ -61,6 +61,7 @@ interface Props {
   setForm: (f: DynamicFormData) => void
   status: DynamicFormStatus
   canSubmit: boolean
+  submitBlockedMessage?: string
   contactsBlock: ResolvedContactsBlock
   handleSubmit: () => void
   errorMsg: string
@@ -80,6 +81,7 @@ export function DynamicSurveyForm({
   setForm,
   status,
   canSubmit,
+  submitBlockedMessage,
   contactsBlock,
   handleSubmit,
   errorMsg,
@@ -219,7 +221,7 @@ export function DynamicSurveyForm({
             <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </>
-      ) : !allRequiredConsentsChecked(form, contactsBlock)
+      ) : submitBlockedMessage ? submitBlockedMessage : !allRequiredConsentsChecked(form, contactsBlock)
         ? contactsBlock.submitHintNeedConsents
         : !contactsStepComplete(form, contactsBlock)
           ? contactsBlock.submitHintNeedContacts

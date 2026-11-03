@@ -1,95 +1,65 @@
-# Opros — фронтенд опросов (Vite + React)
+# Askly — frontend
 
-Документация проекта:
+React 19 + TypeScript + Vite. Основные сценарии: публичный опрос `/s/:slug`,
+редакторы и аналитика `/admin`, лендинг `/`, журнал изменений `/updates`.
+Маршрут `/crm` направляет в тот же поток, что `/s/crm`.
 
-- [`docs/AUTH_AND_ACCESS.md`](../docs/AUTH_AND_ACCESS.md) — план авторизации (Google, Microsoft), владельцы опросов, доступ глобального админа; актуально при смене бэкенда.
-- [`server/DATABASE.md`](../server/DATABASE.md) — схема PostgreSQL.
+## Запуск
 
-Для админки с OAuth: в `.env` задайте `VITE_API_URL` (и при необходимости `VITE_WS_URL`) на свой `server`, в Supabase включите провайдеры Google/Azure и redirect на `https://…/admin`. На сервере — `SUPABASE_JWT_SECRET`, `GLOBAL_ADMIN_EMAILS`.
+Требуются Node.js 22 и npm. Выполните в `survey`:
 
-## Деплой фронта на Vercel (без Git к API)
-
-Фронт на Vercel — статика; **пароль и данные админки** обрабатывает ваш развёрнутый **`server`** (Node API).
-
-1. Разверните `server` с публичным **HTTPS** (Railway, Render, VPS и т.д.): `DATABASE_URL`, `ADMIN_PASSWORD`, `JWT_SECRET`, при OAuth — `SUPABASE_JWT_SECRET`.
-2. На API в `.env`: **`FRONTEND_URL`** = URL сайта на Vercel (например `https://survey-nine-zeta.vercel.app`), иначе CORS заблокирует браузер.
-3. В Vercel → **Settings → Environment Variables** (Production): **`VITE_API_URL`** = корень API **без** `/api` (например `https://xxx.up.railway.app`). Сохраните и сделайте **Redeploy** — переменные `VITE_*` вшиваются при **сборке**.
-4. Не оставляйте в `vercel.json` прокси на несуществующий хост: это даёт **502** в браузере. Либо рабочий rewrite на реальный API, либо только SPA-rewrite как в репозитории и доступ к API через **`VITE_API_URL`**.
-
-**Локально:** без `VITE_API_URL` в `survey/.env` фронт ходит на `http://localhost:3001` — запустите `server` (`npm run dev` в папке `server`).
-
----
-
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+npm ci
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Без `VITE_API_URL` в development API находится на `http://localhost:3001`.
+Сервер запускается отдельно. Настройка БД, секретов, Docker и hosted API —
+в [`server/MIGRATION.md`](../server/MIGRATION.md).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Локальный `survey/.env` игнорируется Git:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```env
+VITE_API_URL=http://localhost:3001
+VITE_SUPABASE_URL=https://project.supabase.co
+VITE_SUPABASE_ANON_KEY=публичный-ключ-проекта
 ```
+
+Переменные `VITE_*` входят в сборку и должны содержать только публичные значения.
+Пароль администратора, signing secret, service-role key и строка подключения к
+БД задаются серверу. Supabase SDK используется для OAuth Google/Microsoft;
+разрешите redirect `http://localhost:5173/admin` и production URL в настройках
+Supabase Auth. `docs/AUTH_AND_ACCESS.md` описывает модель владельцев и доступа.
+
+## Проверки
+
+```sh
+npm run check
+```
+
+Команда включает ESLint, TypeScript, тесты и production build. Отдельно доступны
+`npm run lint`, `npm run typecheck`, `npm test`, `npm run build`.
+Из корня `node scripts/check-architecture.mjs` проверяет локальные зависимости.
+GitHub Actions запускает эти проверки и серверную интеграцию с PostgreSQL.
+Регрессионные тесты чистых функций не заменяют браузерную проверку и настоящий OAuth.
+
+React Compiler **включён** через `@rolldown/plugin-babel` в `vite.config.ts`,
+фильтр ограничен исходниками приложения. Не включайте преобразование зависимостей
+без проверки совместимости. Компоненты используют существующие CSS и MUI;
+дизайн и архитектурный план описаны в [`DESIGN.md`](../DESIGN.md) и
+[`docs/architecture-review.md`](../docs/architecture-review.md).
+
+## Production
+
+Для Docker/nginx или корневого Vercel rewrite оставьте `VITE_API_URL` пустым,
+чтобы запросы шли на `/api/*` того же origin. Для отдельного Node API задайте
+полный публичный HTTPS URL без суффикса `/api`; на API разрешите URL фронтенда
+через `FRONTEND_URL`. Изменение `VITE_*` требует новой сборки.
+
+Корневой `vercel.json` содержит конфигурацию Vercel + Supabase Edge. Файл
+`survey/vercel.json` содержит только SPA fallback: при выборе `survey` как
+отдельного корня деплоя нужен явный `VITE_API_URL` на ваш API. Не смешивайте
+эти два режима. Подробная последовательность — в инструкции сервера выше.
+
+Dev-fixture доступна только при `DEV`, `VITE_ENABLE_UI_FIXTURES=true`, loopback
+hostname и специальном slug `__preview_crm`. Она не сохраняет ответы.

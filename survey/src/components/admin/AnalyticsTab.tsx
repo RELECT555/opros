@@ -6,11 +6,10 @@ import type {
   TokenRecord,
   ResponseStatus,
   Survey,
-  SurveyConfigData,
-  SurveyQuestion,
 } from '../../lib/supabase'
 import { AnalyticsTabSkeleton } from './AdminSkeletons'
 import { useAdminRefresh } from '../../lib/useAdminRefresh'
+import { buildQuestionSections, buildLegacySections } from '../../features/responses/responseAnalytics'
 
 const STATUS_CONFIG: Record<ResponseStatus, { label: string }> = {
   new:         { label: 'Новая' },
@@ -19,9 +18,6 @@ const STATUS_CONFIG: Record<ResponseStatus, { label: string }> = {
   closed:      { label: 'Закрыто' },
 }
 const STATUS_ORDER: ResponseStatus[] = ['new', 'called', 'in_progress', 'closed']
-
-/** Сколько уникальных текстовых ответов показывать в одном графике */
-const TEXT_ANSWER_TOP = 14
 
 interface Props {
   surveyId: number
@@ -35,159 +31,7 @@ function responseHasLegacyColumnData(r: SurveyRecord): boolean {
   return purpose.length > 0 || used.length > 0 || cur.length > 0
 }
 
-function legacySectionTitles(cfg: SurveyConfigData): {
-  purpose: string
-  usedBefore: string
-  current: string
-} {
-  const la = cfg.legacy_analytics
-  return {
-    purpose: la?.purpose_title ?? 'Несколько вариантов — блок 1',
-    usedBefore: la?.used_before_title ?? 'Несколько вариантов — блок 2',
-    current: la?.current_title ?? 'Один вариант',
-  }
-}
-
-function legacyCurrentLabel(raw: string, cfg: SurveyConfigData): string {
-  const fromCfg = cfg.legacy_analytics?.current_value_labels?.[raw]
-  if (fromCfg) return fromCfg
-  return raw
-}
-
-function aggregateLegacyMulti(
-  responses: SurveyRecord[],
-  pick: (r: SurveyRecord) => string[],
-): [string, number][] {
-  const counts: Record<string, number> = {}
-  for (const r of responses) {
-    for (const v of pick(r)) {
-      const key = v?.trim()
-      if (!key) continue
-      counts[key] = (counts[key] ?? 0) + 1
-    }
-  }
-  return Object.entries(counts).sort((a, b) => b[1] - a[1])
-}
-
-function aggregateLegacyCurrent(
-  responses: SurveyRecord[],
-  cfg: SurveyConfigData,
-): [string, number][] {
-  const counts: Record<string, number> = {}
-  for (const r of responses) {
-    const raw = (r.current_crm ?? '').trim()
-    if (!raw) continue
-    const label = legacyCurrentLabel(raw, cfg)
-    counts[label] = (counts[label] ?? 0) + 1
-  }
-  return Object.entries(counts).sort((a, b) => b[1] - a[1])
-}
-
-type QuestionAgg = { questionId: string; title: string; items: [string, number][] }
-
-function aggregateChoiceQuestion(
-  q: SurveyQuestion,
-  responses: SurveyRecord[],
-): QuestionAgg | null {
-  if (q.type !== 'checkbox' && q.type !== 'radio' && q.type !== 'scale') {
-    return null
-  }
-
-  const counts: Record<string, number> = {}
-  let any = false
-
-  for (const r of responses) {
-    const raw = r.answers?.[q.id]
-    if (raw === undefined || raw === null) continue
-
-    if (q.type === 'checkbox') {
-      const arr = Array.isArray(raw) ? raw : []
-      for (const v of arr) {
-        if (v === undefined || v === null || v === '') continue
-        any = true
-        let label: string
-        if (v === '__other__') {
-          const o = String(r.answers?.[`${q.id}__other`] ?? '').trim()
-          label = o ? `Другое: ${o}` : 'Другое'
-        } else {
-          label = String(v)
-        }
-        counts[label] = (counts[label] ?? 0) + 1
-      }
-    } else {
-      const s = String(raw).trim()
-      if (!s) continue
-      any = true
-      const label =
-        s === '__other__'
-          ? (() => {
-              const o = String(r.answers?.[`${q.id}__other`] ?? '').trim()
-              return o ? `Другое: ${o}` : 'Другое'
-            })()
-          : s
-      counts[label] = (counts[label] ?? 0) + 1
-    }
-  }
-
-  if (!any) return null
-  const items = Object.entries(counts).sort((a, b) => b[1] - a[1])
-  return { questionId: q.id, title: q.title, items }
-}
-
-function aggregateTextQuestion(
-  q: SurveyQuestion,
-  responses: SurveyRecord[],
-): QuestionAgg | null {
-  if (q.type !== 'text') return null
-
-  const counts: Record<string, number> = {}
-  for (const r of responses) {
-    const raw = r.answers?.[q.id]
-    if (raw === undefined || raw === null) continue
-    const s = String(raw).trim()
-    if (!s) continue
-    counts[s] = (counts[s] ?? 0) + 1
-  }
-
-  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1])
-  if (entries.length === 0) return null
-
-  let items: [string, number][]
-  if (entries.length <= TEXT_ANSWER_TOP) {
-    items = entries.map(([text, n]) => {
-      const label = text.length > 100 ? `${text.slice(0, 97)}…` : text
-      return [label, n] as [string, number]
-    })
-  } else {
-    const head = entries.slice(0, TEXT_ANSWER_TOP).map(([text, n]) => {
-      const label = text.length > 100 ? `${text.slice(0, 97)}…` : text
-      return [label, n] as [string, number]
-    })
-    const restN = entries.slice(TEXT_ANSWER_TOP).reduce((s, [, c]) => s + c, 0)
-    const restK = entries.length - TEXT_ANSWER_TOP
-    items = [...head, [`Остальные формулировки (${restK})`, restN]]
-  }
-
-  return { questionId: q.id, title: q.title, items }
-}
-
-function buildQuestionSections(
-  survey: Survey,
-  responses: SurveyRecord[],
-): QuestionAgg[] {
-  const qs = survey.config?.questions ?? []
-  const out: QuestionAgg[] = []
-  for (const q of qs) {
-    const choice = aggregateChoiceQuestion(q, responses)
-    if (choice) {
-      out.push(choice)
-      continue
-    }
-    const text = aggregateTextQuestion(q, responses)
-    if (text) out.push(text)
-  }
-  return out
-}
+const legacyTitles = { purpose: 'Цели — история ответов', usedBefore: 'Опыт — история ответов', current: 'Ситуация — история ответов' }
 
 export function AnalyticsTab({ surveyId, survey }: Props) {
   const [responses, setResponses] = useState<SurveyRecord[]>([])
@@ -210,32 +54,17 @@ export function AnalyticsTab({ surveyId, survey }: Props) {
   }, [surveyId])
   useAdminRefresh(refresh)
 
-  const cfg = survey.config
-
   const showLegacyColumns = useMemo(
     () => responses.some(responseHasLegacyColumnData),
     [responses],
   )
 
-  const legacyTitles = useMemo(() => legacySectionTitles(cfg), [cfg])
-
-  const legacyPurpose = useMemo(() => {
-    if (!showLegacyColumns) return [] as [string, number][]
-    return aggregateLegacyMulti(responses, r => r.crm_purpose ?? [])
-  }, [responses, showLegacyColumns])
-
-  const legacyUsedBefore = useMemo(() => {
-    if (!showLegacyColumns) return [] as [string, number][]
-    return aggregateLegacyMulti(responses, r => r.crm_used_before ?? [])
-  }, [responses, showLegacyColumns])
-
-  const legacyCurrent = useMemo(() => {
-    if (!showLegacyColumns) return [] as [string, number][]
-    return aggregateLegacyCurrent(responses, cfg)
-  }, [responses, showLegacyColumns, cfg])
+  const { purpose: legacyPurpose, usedBefore: legacyUsedBefore, current: legacyCurrent } = useMemo(
+    () => buildLegacySections(responses), [responses],
+  )
 
   const questionSections = useMemo(
-    () => buildQuestionSections(survey, responses),
+    () => buildQuestionSections(survey.config, responses),
     [survey, responses],
   )
 

@@ -1,12 +1,15 @@
 /* eslint-disable react-refresh/only-export-components */
-import { StrictMode } from 'react'
+import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom'
 import './index.css'
-import AdminPage from './pages/AdminPage.tsx'
+// Preserve the existing global cascade while loading the admin JavaScript on demand.
+import './styles/admin.css'
 import SurveyPage from './pages/SurveyPage.tsx'
 import HomePage from './pages/HomePage.tsx'
 import UpdatesPage from './pages/UpdatesPage.tsx'
+
+const AdminPage = lazy(() => import('./pages/AdminPage.tsx'))
 
 function SurveyRoute() {
   const { slug } = useParams<{ slug: string }>()
@@ -21,6 +24,7 @@ function CrmSurveyRoute() {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
+      <Suspense fallback={<main role="status" aria-live="polite">Загрузка…</main>}>
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/updates" element={<UpdatesPage />} />
@@ -29,6 +33,7 @@ createRoot(document.getElementById('root')!).render(
         {/* Обратная совместимость: старые CRM-ссылки /?t=xxx */}
         <Route path="/crm" element={<CrmSurveyRoute />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   </StrictMode>,
 )

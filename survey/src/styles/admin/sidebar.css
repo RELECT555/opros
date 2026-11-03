@@ -1,0 +1,604 @@
+/* ── Layout ── */
+.adm-root {
+  min-height: 100vh;
+  width: 100%;
+  max-width: none;
+  background: var(--bg);
+  position: relative;
+}
+
+.adm-layout {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  max-width: none;
+}
+
+/* ── Sidebar ── */
+.adm-sidebar {
+  width: var(--adm-sidebar-width, 220px);
+  flex-shrink: 0;
+  border-right: 1px solid var(--adm-a06);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: width 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow:
+    inset 0 1px 0 var(--adm-a08),
+    inset 0 0 72px rgba(var(--accent-rgb), 0.06),
+    12px 0 40px -12px rgba(var(--accent-rgb), 0.14);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 10px 20px;
+  gap: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  contain: layout style;
+}
+
+/* Blur off during width transition — backdrop-filter is very expensive on each layout pass */
+.adm-sidebar.adm-sidebar--animating {
+  will-change: width;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.adm-sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 130% 55% at -20% 8%,
+    rgba(var(--accent-rgb), 0.11) 0%,
+    transparent 58%
+  );
+}
+
+.adm-sidebar::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 1px; height: 100%;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    var(--adm-a07) 20%,
+    var(--adm-a07) 80%,
+    transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.adm-sidebar > * { position: relative; z-index: 2; }
+
+@media (prefers-reduced-motion: reduce) {
+  .adm-sidebar { transition: none; }
+  .adm-sidebar.adm-sidebar--animating { will-change: auto; }
+  .adm-collapse-icon { transition: none; }
+}
+
+/* brand */
+.adm-sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 24px;
+  padding: 0 6px;
+  min-height: 44px;
+}
+.adm-sidebar--collapsed .adm-sidebar-top {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+  width: 100%;
+}
+
+.adm-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.adm-sidebar--collapsed .adm-brand-text {
+  display: none;
+}
+
+/* Подписи пунктов: остаются в DOM, без лишнего layout при переключении */
+.adm-sidebar--collapsed .adm-nav-label,
+.adm-sidebar--collapsed .adm-collapse-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.adm-sidebar--collapsed .adm-nav-chevron {
+  display: none;
+}
+
+.adm-sidebar--collapsed .adm-nav-divider--nested {
+  display: none;
+}
+
+.adm-sidebar:not(.adm-sidebar--collapsed) .adm-nav-divider-dot {
+  display: none;
+}
+
+.adm-theme-form-label--collapsed .MuiFormControlLabel-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.adm-theme-form-label--collapsed.MuiFormControlLabel-root {
+  margin: 0;
+  justify-content: center;
+  width: 100%;
+  padding: 4px 0 8px;
+}
+
+.adm-theme-form-label--collapsed .MuiSwitch-root {
+  margin: 0;
+}
+
+.adm-brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--accent);
+  border: 1px solid color-mix(in srgb, #fff 22%, var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow:
+    0 1px 0 var(--adm-a2) inset,
+    0 2px 8px rgba(var(--accent-rgb), 0.25),
+    0 6px 20px rgba(var(--accent-rgb), 0.12);
+}
+
+.adm-brand-mark svg {
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2));
+}
+
+.adm-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.adm-brand-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.22px;
+  color: var(--text);
+  line-height: 1.12;
+  white-space: nowrap;
+}
+.adm-brand-sub {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text-3) 78%, var(--accent) 22%);
+  line-height: 1.15;
+}
+
+.adm-brand-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--text);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.adm-collapse-icon {
+  flex-shrink: 0;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.adm-collapse-icon--collapsed {
+  transform: rotate(180deg);
+}
+
+.adm-collapse-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--adm-a28);
+  font-size: 13.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.adm-sidebar--collapsed .adm-collapse-btn {
+  justify-content: center;
+  padding: 10px;
+  width: 44px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.adm-collapse-btn:hover {
+  background: var(--adm-a05);
+  color: var(--adm-a65);
+}
+
+/* nav */
+.adm-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+}
+
+.adm-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.adm-nav-group-head {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+}
+
+.adm-nav-bundled {
+  border-radius: 11px;
+  border: 1px solid var(--adm-a08);
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--adm-a06) 55%, transparent) 0%,
+    color-mix(in srgb, var(--adm-a04) 40%, transparent) 100%
+  );
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--adm-a08) 65%, transparent);
+  overflow: hidden;
+}
+
+.adm-nav-bundled .adm-nav-chevron {
+  border-radius: 0;
+}
+
+.adm-nav-bundled .adm-nav-group-trigger {
+  border-radius: 0;
+  background: transparent;
+}
+
+.adm-nav-bundled .adm-nav-group-trigger:hover {
+  background: color-mix(in srgb, var(--adm-a08) 35%, transparent);
+}
+
+.adm-nav-bundled .adm-nav-group-trigger.adm-nav-item--active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.adm-nav-bundled .adm-nav-group-trigger.adm-nav-item--active::before {
+  border-radius: 0 3px 3px 0;
+}
+
+.adm-nav-group-head--has-chevron .adm-nav-chevron {
+  border-right: 1px solid var(--adm-a08);
+}
+
+.adm-nav-group-head--collapsed {
+  display: flex;
+  justify-content: center;
+}
+
+.adm-nav-group-head--collapsed .adm-nav-group-trigger {
+  width: 44px;
+  min-width: 44px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.adm-nav-group-head--has-chevron .adm-nav-group-trigger {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.adm-nav-group-head:not(.adm-nav-group-head--has-chevron) .adm-nav-group-trigger {
+  flex: 1;
+}
+
+.adm-nav-chevron {
+  flex-shrink: 0;
+  width: 30px;
+  min-width: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--adm-a55);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+  align-self: stretch;
+}
+
+.adm-nav-chevron:hover {
+  background: color-mix(in srgb, var(--adm-a08) 50%, transparent);
+  color: var(--adm-a75);
+}
+
+.adm-nav-chevron-svg {
+  transition: transform 0.2s ease;
+  opacity: 0.9;
+}
+
+.adm-nav-surveys-nest {
+  margin: 8px 0 6px 0;
+  padding: 8px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--adm-a08);
+  background: color-mix(in srgb, var(--adm-a04) 70%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--adm-a06),
+    0 1px 2px var(--adm-shadow-08);
+}
+
+.adm-nav-surveys-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: min(34vh, 220px);
+  overflow-y: auto;
+  padding: 2px 4px 2px 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--adm-a15) transparent;
+}
+
+.adm-nav-survey-pick {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 12px 9px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text) 86%, var(--adm-a38) 14%);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.16s ease, color 0.16s ease;
+  position: relative;
+}
+
+.adm-nav-survey-pick-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  margin-left: 1px;
+  color: color-mix(in srgb, var(--adm-a55) 55%, var(--adm-a38));
+  opacity: 1;
+  transition: color 0.16s ease;
+}
+
+.adm-nav-survey-pick:hover {
+  background: color-mix(in srgb, var(--adm-a08) 38%, transparent);
+  color: var(--text);
+}
+
+.adm-nav-survey-pick:hover .adm-nav-survey-pick-icon {
+  color: color-mix(in srgb, var(--text) 45%, var(--adm-a55));
+}
+
+.adm-nav-survey-pick--current {
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.adm-nav-survey-pick--current .adm-nav-survey-pick-icon {
+  color: var(--accent);
+}
+
+.adm-nav-survey-pick-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0.015em;
+  line-height: 1.35;
+}
+
+.adm-root[data-adm-mode="light"] .adm-nav-surveys-nest {
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
+  border-color: var(--border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 1px 2px var(--adm-shadow-08);
+}
+
+.adm-root[data-adm-mode="light"] .adm-nav-survey-pick {
+  color: color-mix(in srgb, var(--text) 78%, var(--adm-a38) 22%);
+}
+
+.adm-root[data-adm-mode="light"] .adm-nav-survey-pick-icon {
+  color: color-mix(in srgb, var(--adm-a55) 50%, var(--adm-a38));
+}
+
+.adm-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--adm-a38);
+  font-size: 13.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  position: relative;
+}
+
+a.adm-nav-item {
+  text-decoration: none;
+  box-sizing: border-box;
+}
+.adm-sidebar--collapsed .adm-nav {
+  align-items: center;
+}
+
+.adm-sidebar--collapsed .adm-nav-item {
+  justify-content: center;
+  padding: 10px;
+  width: 44px;
+  min-width: 44px;
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+}
+.adm-nav-item:hover {
+  background: var(--adm-a05);
+  color: var(--adm-a75);
+}
+.adm-nav-item--active {
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--text);
+}
+.adm-nav-item--active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 20%; bottom: 20%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.45);
+}
+
+/* В узком сайдбаре полоска слева визуально сдвигает иконку — индикатор снизу по центру */
+.adm-sidebar--collapsed .adm-nav-item--active::before {
+  left: 50%;
+  top: auto;
+  bottom: 5px;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 3px;
+  border-radius: 3px;
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.4);
+}
+
+.adm-nav-item--active svg { color: var(--accent); }
+
+.adm-nav-divider-dot {
+  width: 20px;
+  height: 1px;
+  background: var(--adm-a07);
+  margin: 6px auto;
+}
+
+/* bottom */
+.adm-sidebar-bottom {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--adm-a05);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: stretch;
+}
+
+.adm-sidebar--collapsed .adm-sidebar-bottom {
+  align-items: center;
+}
+
+/* MUI переключатель темы в сайдбаре */
+.adm-theme-form-label.MuiFormControlLabel-root {
+  margin: 0;
+  width: 100%;
+  padding: 5px 8px 5px 10px;
+  border-radius: 10px;
+  box-sizing: border-box;
+  justify-content: space-between;
+  gap: 8px;
+  transition: background 0.15s;
+}
+.adm-theme-form-label.MuiFormControlLabel-root:hover {
+  background: var(--adm-a05);
+}
+.adm-theme-form-label .MuiFormControlLabel-label {
+  flex: 1;
+  min-width: 0;
+}
+.adm-theme-switch-caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--adm-a38);
+  font-family: inherit;
+}
+.adm-theme-form-label:hover .adm-theme-switch-caption {
+  color: var(--adm-a75);
+}
+
+.adm-survey-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  color: var(--adm-a28);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.adm-sidebar--collapsed .adm-survey-link {
+  justify-content: center;
+  padding: 10px;
+  width: 44px;
+  min-width: 44px;
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+}
+.adm-survey-link:hover {
+  background: var(--adm-a05);
+  color: var(--adm-a65);
+}
+

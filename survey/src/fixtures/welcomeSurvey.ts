@@ -2,6 +2,7 @@ import type { Survey } from '../lib/supabase'
 
 export const welcomeSurvey: Survey = {
   id: -1,
+  revision: 1,
   slug: '__preview_crm',
   title: 'CRM-консультация — локальный пример',
   is_active: true,

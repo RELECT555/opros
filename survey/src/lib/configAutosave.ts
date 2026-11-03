@@ -7,11 +7,23 @@ export class ConfigAutosave {
   private pending: SurveyConfigData | null = null
   private inFlight: Promise<void> | null = null
   private save: (config: SurveyConfigData) => Promise<void>
+  private revision = 1
   private timer: ReturnType<typeof setTimeout> | null = null
   private listeners = new Set<() => void>()
   private state: SaveState = { status: 'idle', error: '' }
 
   constructor(save: (config: SurveyConfigData) => Promise<void>) { this.save = save }
+
+  getRevision = () => this.revision
+  setRevision(revision: number) { this.revision = revision }
+
+  async discard() {
+    if (this.timer) clearTimeout(this.timer)
+    this.timer = null
+    this.pending = null
+    await this.inFlight
+    this.publish('idle')
+  }
 
   getSnapshot = () => this.state
   subscribe = (listener: () => void) => {

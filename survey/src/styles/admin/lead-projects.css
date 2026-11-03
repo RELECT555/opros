@@ -1,0 +1,163 @@
+/* ── Lead Projects ────────────────────────────────────────── */
+
+.adm-lead-projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.adm-lead-project-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.03);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s, transform 0.14s, box-shadow 0.15s;
+  position: relative;
+}
+
+.adm-lead-project-card:hover {
+  border-color: rgba(var(--accent-rgb), 0.35);
+  background: rgba(var(--accent-rgb), 0.06);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(var(--accent-rgb), 0.12);
+}
+
+.adm-root[data-adm-mode="light"] .adm-lead-project-card {
+  border-color: rgba(0,0,0,0.08);
+  background: rgba(0,0,0,0.02);
+}
+
+.adm-lead-project-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.adm-lead-project-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(var(--accent-rgb), 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.adm-lead-project-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.adm-lead-project-card:hover .adm-lead-project-actions {
+  opacity: 1;
+}
+
+.adm-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.adm-icon-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: var(--text);
+  border-color: rgba(255,255,255,0.16);
+}
+
+.adm-icon-btn--danger:hover {
+  background: rgba(239,68,68,0.15);
+  color: #f87171;
+  border-color: rgba(239,68,68,0.3);
+}
+
+.adm-root[data-adm-mode="light"] .adm-icon-btn {
+  border-color: rgba(0,0,0,0.1);
+  background: rgba(0,0,0,0.03);
+}
+
+.adm-lead-project-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.adm-lead-project-desc {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.45;
+  opacity: 0.8;
+}
+
+.adm-lead-project-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.adm-root[data-adm-mode="light"] .adm-lead-project-footer {
+  border-top-color: rgba(0,0,0,0.06);
+}
+
+.adm-lead-project-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.adm-lead-project-date {
+  font-size: 11px;
+  color: var(--text-2);
+  opacity: 0.6;
+}
+
+/* Кнопка «назад» в заголовке */
+.adm-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-2);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+
+.adm-back-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: var(--text);
+}
+
+.adm-root[data-adm-mode="light"] .adm-back-btn {
+  border-color: rgba(0,0,0,0.1);
+  background: rgba(0,0,0,0.03);
+}
+

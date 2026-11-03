@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "typecheck": "tsc -b --pretty false",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "dev": "vite",
     "build": "vite build",

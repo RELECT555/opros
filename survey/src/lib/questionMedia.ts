@@ -1,5 +1,9 @@
 import type { QuestionMedia } from './supabase'
 
+function isDomain(host: string, domain: string): boolean {
+  return host === domain || host.endsWith(`.${domain}`)
+}
+
 export function isSafeMediaUrl(url: string): boolean {
   try {
     const p = new URL(url.trim())
@@ -35,7 +39,7 @@ export function toEmbedIframeSrc(raw: string): string {
     const parsed = new URL(u)
     const host = parsed.hostname.toLowerCase()
 
-    if (host.includes('youtube.com')) {
+    if (isDomain(host, 'youtube.com') || isDomain(host, 'youtube-nocookie.com')) {
       if (parsed.pathname.startsWith('/embed/')) return u
       if (parsed.pathname.startsWith('/shorts/')) {
         const id = parsed.pathname.split('/').filter(Boolean)[1]
@@ -62,9 +66,9 @@ export function toEmbedIframeSrc(raw: string): string {
         return `https://player.vimeo.com/video/${encodeURIComponent(id)}`
       }
     }
-    if (host.includes('player.vimeo.com')) return u
+    if (host === 'player.vimeo.com') return u
 
-    if (host.endsWith('rutube.ru')) {
+    if (isDomain(host, 'rutube.ru')) {
       const parts = parsed.pathname.split('/').filter(Boolean)
       if (parts[0] === 'play' && parts[1] === 'embed' && parts[2]) {
         return `${parsed.origin}/play/embed/${parts[2]}`
@@ -86,14 +90,16 @@ export function toEmbedIframeSrc(raw: string): string {
 /** Разрешённые хосты для iframe — иначе страница часто пустая (чёрный прямоугольник). */
 export function isHostAllowedForIframeEmbed(src: string): boolean {
   try {
-    const host = new URL(src).hostname.toLowerCase()
+    const url = new URL(src)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return false
+    const host = url.hostname.toLowerCase()
     return (
-      host.endsWith('youtube.com') ||
-      host.endsWith('youtube-nocookie.com') ||
+      isDomain(host, 'youtube.com') ||
+      isDomain(host, 'youtube-nocookie.com') ||
       host === 'youtu.be' ||
-      host.endsWith('vimeo.com') ||
+      isDomain(host, 'vimeo.com') ||
       host === 'player.vimeo.com' ||
-      host.endsWith('rutube.ru')
+      isDomain(host, 'rutube.ru')
     )
   } catch {
     return false

@@ -1,0 +1,10 @@
+{
+  "name": "opros",
+  "private": true,
+  "scripts": {
+    "bootstrap": "npm --prefix survey ci && npm --prefix server ci",
+    "check": "npm --prefix survey run check && npm --prefix server run check && npm run check:architecture",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "test:integration": "npm --prefix server run test:integration"
+  }
+}

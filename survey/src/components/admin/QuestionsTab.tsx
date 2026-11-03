@@ -1,22 +1,24 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { ContactsBlockEditor } from '../../features/survey-editor/ContactsBlockEditor'
+import { QField, CheckboxIcon, RadioIcon, TextIcon, ScaleIcon } from '../../features/survey-editor/EditorFields'
+import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, easeOut, useReducedMotion } from 'framer-motion'
-import { getSurveyById, updateSurveyConfig } from '../../lib/api-client'
+import { ApiError, getSurveyById, updateSurveyConfig } from '../../lib/api-client'
 import type {
   Survey,
   SurveyQuestion,
   SurveyConfigData,
   QuestionMedia,
   QuestionMediaKind,
-  SurveyConsentItem,
-  ContactsBlockConfig,
-  ContactsFieldPartial,
 } from '../../lib/supabase'
-import { mergeContactsBlockConfig, defaultConsentItemsForEditor } from '../../lib/contactsBlock'
 import { questionMediaHasContent } from '../../lib/questionMedia'
-import { isCanvasSurvey, appendSurveyQuestion } from '../../lib/surveyCanvas'
+import { isCanvasSurvey, appendSurveyQuestion, removeSurveyQuestion } from '../../lib/surveyCanvas'
 import { questionsLiveEditHref } from '../../lib/liveEditLinks'
 import { QuestionsTabSkeleton } from './AdminSkeletons'
+import { useSurveyEditorDraft } from '../../lib/useSurveyEditorDraft'
+import { downloadEditorDraft } from '../../lib/editorDraft'
+import { EditorDraftNotice } from './EditorDraftNotice'
+import { scaleValues } from '../../domain/scaleRange.ts'
 
 interface ConfirmState {
   open: boolean
@@ -77,82 +79,50 @@ function newQuestion(): SurveyQuestion {
   }
 }
 
-function cloneConfig(c: SurveyConfigData): SurveyConfigData {
-  return JSON.parse(JSON.stringify(c)) as SurveyConfigData
-}
-
-type ContactFieldKey = 'name' | 'phone' | 'email' | 'comment'
-
-function contactsFieldRaw(cfg: ContactsBlockConfig | undefined, key: ContactFieldKey): ContactsFieldPartial | undefined {
-  switch (key) {
-    case 'name':
-      return cfg?.name
-    case 'phone':
-      return cfg?.phone
-    case 'email':
-      return cfg?.email
-    case 'comment':
-      return cfg?.comment
-    default:
-      return undefined
-  }
-}
+const EMPTY_CONFIG: SurveyConfigData = { questions: [] }
 
 export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
-  const [, setSurvey] = useState<Survey | null>(null)
-  const [config, setConfig] = useState<SurveyConfigData>({ questions: [] })
-  const [baselineConfig, setBaselineConfig] = useState<SurveyConfigData | null>(null)
+  const editor = useSurveyEditorDraft(surveyId, 'questions', EMPTY_CONFIG)
+  const { draft, value: config, dirty, revision, conflict } = editor
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [dirty, setDirty] = useState(false)
   const [loading, setLoading] = useState(true)
   const { confirm, dialog } = useConfirm()
-  const contactsResolved = useMemo(() => mergeContactsBlockConfig(config.contacts_block), [config.contacts_block])
-  const consentListForEdit =
-    config.contacts_block?.consents !== undefined
-      ? config.contacts_block.consents
-      : defaultConsentItemsForEditor()
-  function patchConsents(next: SurveyConsentItem[]) {
-    update(c => ({ ...c, contacts_block: { ...c.contacts_block, consents: next } }))
-  }
   const reduceMotion = useReducedMotion()
   const listTransition = reduceMotion ? { duration: 0 } : { duration: 0.18, ease: easeOut }
   const saveBarTransition = reduceMotion ? { duration: 0 } : { duration: 0.22, ease: easeOut }
 
   useEffect(() => {
+    let active = true
     getSurveyById(surveyId)
       .then(s => {
-        if (!s) return
-        setSurvey(s)
-        const cfg = s.config
-        setConfig(cfg)
-        setBaselineConfig(cloneConfig(cfg))
-        setDirty(false)
+        if (!active || !s) return
+        draft.load(s.config, s.revision)
       })
-      .catch(e => setSaveError(e instanceof Error ? e.message : 'Ошибка загрузки'))
-      .finally(() => setLoading(false))
-  }, [surveyId])
+      .catch(e => { if (active) setSaveError(e instanceof Error ? e.message : 'Ошибка загрузки') })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [surveyId, draft])
 
   function update(fn: (c: SurveyConfigData) => SurveyConfigData) {
-    setConfig(fn)
-    setDirty(true)
+    draft.change(fn)
     setSaved(false)
   }
 
   async function save() {
+    if (saving || conflict || revision === null || !dirty) return
+    const snapshot = structuredClone(config)
     setSaving(true)
     setSaveError('')
     try {
-      await updateSurveyConfig(surveyId, config)
-      setBaselineConfig(cloneConfig(config))
-      setSaved(true)
-      setDirty(false)
+      const updated = await updateSurveyConfig(surveyId, snapshot, revision)
+      draft.saved(snapshot, revision, updated.revision)
+      setSaved(!draft.getSnapshot().dirty)
       setTimeout(() => setSaved(false), 2500)
-      // обновляем survey в родителе
-      const updated = await getSurveyById(surveyId)
-      if (updated) onSurveyUpdate(updated)
+      onSurveyUpdate(updated)
     } catch (e: unknown) {
+      if (e instanceof ApiError && e.status === 409) draft.markConflict()
       setSaveError(e instanceof Error ? e.message : 'Ошибка сохранения')
     } finally {
       setSaving(false)
@@ -160,11 +130,24 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
   }
 
   function cancelChanges() {
-    if (!baselineConfig || saving) return
-    setConfig(cloneConfig(baselineConfig))
-    setDirty(false)
+    if (saving || conflict) return
+    draft.discard()
     setSaved(false)
     setSaveError('')
+  }
+
+  async function reloadServer() {
+    if (saving) return
+    setSaving(true)
+    try {
+      const server = await getSurveyById(surveyId)
+      if (!server) throw new Error('Опросник не найден')
+      draft.load(server.config, server.revision, true)
+      onSurveyUpdate(server)
+      setSaved(false)
+      setSaveError('')
+    } catch (error) { setSaveError(error instanceof Error ? error.message : 'Ошибка загрузки') }
+    finally { setSaving(false) }
   }
 
   function addQuestion() {
@@ -172,9 +155,11 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
   }
 
   async function removeQuestion(idx: number) {
+    const questionId = config.questions[idx]?.id
+    if (!questionId) return
     const ok = await confirm('Удалить вопрос?', 'Это действие нельзя отменить.')
     if (!ok) return
-    update(c => ({ ...c, questions: c.questions.filter((_, i) => i !== idx) }))
+    update(c => removeSurveyQuestion(c, questionId))
   }
 
   function updateQuestion(idx: number, patch: Partial<SurveyQuestion>) {
@@ -260,6 +245,8 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
 
   return (
     <div className="adm-tab-content qed-root">
+      <EditorDraftNotice restored={editor.restored} conflict={conflict} storageError={editor.storageError} busy={saving}
+        onReload={reloadServer} onDownload={() => downloadEditorDraft(surveyId, 'questions', revision, config)} />
       {/* Header */}
       <div className="qed-header">
         <div className="qed-header-row">
@@ -354,7 +341,7 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
         </div>
       </div>
 
-      {saveError && <p className="adm-err-banner">{saveError}</p>}
+      {saveError && <p className="adm-err-banner" role="alert">{saveError}</p>}
 
       {/* Questions */}
       <div className="qed-list">
@@ -430,9 +417,17 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
                   )}
                   {q.type === 'scale' && (
                     <div className="qed-preview-scale">
-                      {Array.from({ length: (q.scaleMax ?? 10) - (q.scaleMin ?? 1) + 1 }, (_, i) => i + (q.scaleMin ?? 1)).map(n => (
-                        <span key={n} className="qed-preview-scale-tick">{n}</span>
-                      ))}
+                      {(() => {
+                        const min = q.scaleMin ?? 1
+                        const max = q.scaleMax ?? 10
+                        const values = scaleValues(min, max)
+                        if (values.length === 0) {
+                          return <span role="status">Укажите целый диапазон от минимума до максимума, не более 100 значений.</span>
+                        }
+                        return values.map(n => (
+                          <span key={n} className="qed-preview-scale-tick">{n}</span>
+                        ))
+                      })()}
                     </div>
                   )}
                 </div>
@@ -673,222 +668,7 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
         </AnimatePresence>
       </div>
 
-      {/* Блок контактов и согласий — в конце, после всех вопросов (как на странице опроса) */}
-      <div className="qed-welcome-card qed-contacts-admin">
-        <div className="qed-welcome-left">
-          <div className="qed-welcome-icon">
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <path d="M9 9a3 3 0 100-6 3 3 0 000 6zM3 16.5v-1.5A5.5 5.5 0 019.5 9.5h1A5.5 5.5 0 0116 15v1.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            </svg>
-          </div>
-          <div>
-            <p className="qed-welcome-label">Блок контактов</p>
-            <p className="qed-welcome-desc">Финальный шаг опроса (после вопросов): поля, тексты и согласия</p>
-          </div>
-          <label className={`qed-contacts-disable-toggle${config.contacts_block?.disabled ? ' qed-contacts-disable-toggle--on' : ''}`}>
-            <span className={`qed-contacts-toggle-sw${config.contacts_block?.disabled ? ' qed-contacts-toggle-sw--on' : ''}`}>
-              <span className="qed-contacts-toggle-knob" />
-            </span>
-            <input
-              type="checkbox"
-              checked={config.contacts_block?.disabled === true}
-              onChange={e =>
-                update(c => ({ ...c, contacts_block: { ...c.contacts_block, disabled: e.target.checked } }))
-              }
-            />
-            <span className="qed-contacts-toggle-label">
-              {config.contacts_block?.disabled ? 'Блок отключён' : 'Блок включён'}
-            </span>
-          </label>
-        </div>
-        <div className={`qed-welcome-fields qed-contacts-admin-fields${config.contacts_block?.disabled ? ' qed-contacts-admin-fields--hidden' : ''}`} aria-hidden={config.contacts_block?.disabled}>
-          <div className="qed-field-row2">
-            <QField
-              label="Заголовок блока"
-              value={config.contacts_block?.title ?? ''}
-              onChange={v => update(c => ({ ...c, contacts_block: { ...c.contacts_block, title: v } }))}
-            />
-            <QField
-              label="Подзаголовок"
-              value={config.contacts_block?.subtitle ?? ''}
-              onChange={v => update(c => ({ ...c, contacts_block: { ...c.contacts_block, subtitle: v } }))}
-            />
-          </div>
-          <div className="qed-field-row2">
-            <QField
-              label="Бейдж шага (до заполнения)"
-              value={config.contacts_block?.step_pill_label ?? ''}
-              onChange={v => update(c => ({ ...c, contacts_block: { ...c.contacts_block, step_pill_label: v } }))}
-            />
-            <QField
-              label="Бейдж (готово)"
-              value={config.contacts_block?.step_pill_done_label ?? ''}
-              onChange={v => update(c => ({ ...c, contacts_block: { ...c.contacts_block, step_pill_done_label: v } }))}
-            />
-          </div>
-          <label className="qed-inline-check">
-            <input
-              type="checkbox"
-              checked={config.contacts_block?.hide_email_when_token !== false}
-              onChange={e =>
-                update(c => ({
-                  ...c,
-                  contacts_block: { ...c.contacts_block, hide_email_when_token: e.target.checked },
-                }))
-              }
-            />
-            Скрывать поле email у респондентов с персональной ссылкой (если email уже известен)
-          </label>
-
-          <p className="qed-subsection-title">Поля</p>
-          {(['name', 'phone', 'email', 'comment'] as const).map(key => {
-            const f = contactsResolved.fields[key]
-            const raw = contactsFieldRaw(config.contacts_block, key)
-            const patchField = (patch: Partial<ContactsFieldPartial>) => {
-              update(c => ({
-                ...c,
-                contacts_block: {
-                  ...c.contacts_block,
-                  [key]: { ...contactsFieldRaw(c.contacts_block, key), ...patch },
-                },
-              }))
-            }
-            return (
-              <div key={key} className="qed-contacts-field-card">
-                <div className="qed-contacts-field-head">
-                  <label className="qed-inline-check">
-                    <input type="checkbox" checked={f.enabled} onChange={e => patchField({ enabled: e.target.checked })} />
-                    <strong>{key === 'name' ? 'Имя' : key === 'phone' ? 'Телефон' : key === 'email' ? 'Email' : 'Комментарий'}</strong>
-                  </label>
-                  {f.enabled ? (
-                    <label className="qed-inline-check qed-inline-check--sm">
-                      <input type="checkbox" checked={f.required} onChange={e => patchField({ required: e.target.checked })} />
-                      Обязательное
-                    </label>
-                  ) : null}
-                  {f.enabled && (key === 'email' || key === 'comment') && !f.required ? (
-                    <label className="qed-inline-check qed-inline-check--sm">
-                      <input
-                        type="checkbox"
-                        checked={f.showOptionalHint}
-                        onChange={e => patchField({ show_optional_hint: e.target.checked })}
-                      />
-                      Пометка «необязательно»
-                    </label>
-                  ) : null}
-                </div>
-                {f.enabled ? (
-                  <div className="qed-field-row2">
-                    <QField label="Подпись" value={raw?.label ?? f.label} onChange={v => patchField({ label: v })} />
-                    <QField label="Плейсхолдер" value={raw?.placeholder ?? f.placeholder} onChange={v => patchField({ placeholder: v })} />
-                  </div>
-                ) : null}
-              </div>
-            )
-          })}
-
-          <p className="qed-subsection-title">Согласия</p>
-          <p className="qed-welcome-desc qed-contacts-consent-hint">
-            Несколько галочек: для каждой — заголовок, пояснение и при необходимости ссылка (URL на политику или PDF). Пустой список — без галочек.
-          </p>
-          {consentListForEdit.map((consent, ci) => (
-            <div key={`${consent.id}-${ci}`} className="qed-consent-card">
-              <div className="qed-consent-card-head">
-                <span className="qed-consent-num">{ci + 1}</span>
-                <button
-                  type="button"
-                  className="adm-btn-danger qed-consent-remove"
-                  onClick={() => patchConsents(consentListForEdit.filter((_, j) => j !== ci))}
-                >
-                  Удалить
-                </button>
-              </div>
-              <QField
-                label="Заголовок"
-                value={consent.title}
-                onChange={v => patchConsents(consentListForEdit.map((x, j) => (j === ci ? { ...x, title: v } : x)))}
-              />
-              <div className="qed-field">
-                <label className="qed-field-label">Текст под заголовком</label>
-                <textarea
-                  className="qed-field-input qed-field-textarea"
-                  rows={2}
-                  value={consent.description}
-                  onChange={e =>
-                    patchConsents(consentListForEdit.map((x, j) => (j === ci ? { ...x, description: e.target.value } : x)))
-                  }
-                  placeholder="Например: Нажимая «Отправить», вы соглашаетесь с"
-                />
-              </div>
-              <div className="qed-field-row2">
-                <QField
-                  label="Ссылка (URL PDF или страницы)"
-                  value={consent.linkUrl ?? ''}
-                  onChange={v =>
-                    patchConsents(
-                      consentListForEdit.map((x, j) => (j === ci ? { ...x, linkUrl: v.trim() || undefined } : x)),
-                    )
-                  }
-                />
-                <QField
-                  label="Текст ссылки"
-                  value={consent.linkLabel ?? ''}
-                  onChange={v =>
-                    patchConsents(
-                      consentListForEdit.map((x, j) => (j === ci ? { ...x, linkLabel: v.trim() || undefined } : x)),
-                    )
-                  }
-                />
-              </div>
-              <label className="qed-inline-check">
-                <input
-                  type="checkbox"
-                  checked={consent.required !== false}
-                  onChange={e =>
-                    patchConsents(consentListForEdit.map((x, j) => (j === ci ? { ...x, required: e.target.checked } : x)))
-                  }
-                />
-                Обязательно для отправки
-              </label>
-            </div>
-          ))}
-          <button
-            type="button"
-            className="qed-add-btn qed-add-consent"
-            onClick={() => {
-              const next: SurveyConsentItem[] = [
-                ...consentListForEdit,
-                {
-                  id: `consent_${Date.now()}`,
-                  title: 'Дополнительное согласие',
-                  description: '',
-                  required: true,
-                },
-              ]
-              patchConsents(next)
-            }}
-          >
-            + Добавить галочку согласия
-          </button>
-
-          <div className="qed-field-row2">
-            <QField
-              label="Кнопка: текст, если не все согласия"
-              value={config.contacts_block?.submit_hint_need_consents ?? ''}
-              onChange={v =>
-                update(c => ({ ...c, contacts_block: { ...c.contacts_block, submit_hint_need_consents: v } }))
-              }
-            />
-            <QField
-              label="Кнопка: текст, если контакты не заполнены"
-              value={config.contacts_block?.submit_hint_need_contacts ?? ''}
-              onChange={v =>
-                update(c => ({ ...c, contacts_block: { ...c.contacts_block, submit_hint_need_contacts: v } }))
-              }
-            />
-          </div>
-        </div>
-      </div>
+      <ContactsBlockEditor config={config} update={update} />
 
       {dialog}
 
@@ -922,7 +702,7 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
                       type="button"
                       className="qed-save-bar-btn-cancel"
                       onClick={cancelChanges}
-                      disabled={saving || !dirty}
+                      disabled={saving || !dirty || conflict}
                     >
                       Отмена
                     </button>
@@ -931,7 +711,7 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
                       className="qed-save-bar-btn"
                       onClick={save}
                       whileTap={{ scale: 0.96 }}
-                      disabled={saving}
+                      disabled={saving || conflict || !dirty}
                     >
                       {saving
                         ? <span className="adm-spinner" />
@@ -950,57 +730,5 @@ export function QuestionsTab({ surveyId, surveySlug, onSurveyUpdate }: Props) {
         document.body,
       )}
     </div>
-  )
-}
-
-function QField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <div className="qed-field">
-      <label className="qed-field-label">{label}</label>
-      <input
-        className="qed-field-input"
-        type="text"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={label + '...'}
-      />
-    </div>
-  )
-}
-
-function CheckboxIcon() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-      <rect x="0.75" y="0.75" width="9.5" height="9.5" rx="2.25" stroke="currentColor" strokeWidth="1.3"/>
-      <path d="M3 5.5l1.8 1.8L8 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function RadioIcon() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-      <circle cx="5.5" cy="5.5" r="4.75" stroke="currentColor" strokeWidth="1.3"/>
-      <circle cx="5.5" cy="5.5" r="2.5" fill="currentColor"/>
-    </svg>
-  )
-}
-
-function TextIcon() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-      <path d="M1.5 3h8M1.5 5.5h8M1.5 8h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function ScaleIcon() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-      <rect x="1" y="7" width="1.5" height="3" rx="0.5" fill="currentColor"/>
-      <rect x="3.5" y="5" width="1.5" height="5" rx="0.5" fill="currentColor"/>
-      <rect x="6" y="3" width="1.5" height="7" rx="0.5" fill="currentColor"/>
-      <rect x="8.5" y="1" width="1.5" height="9" rx="0.5" fill="currentColor"/>
-    </svg>
   )
 }

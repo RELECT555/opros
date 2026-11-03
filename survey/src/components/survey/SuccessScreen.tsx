@@ -1,7 +1,7 @@
 import { motion, easeOut } from 'framer-motion'
 import { SpiralAnimation } from '../ui/SpiralAnimation'
 
-export function SuccessScreen({ onReset }: { onReset: () => void }) {
+export function SuccessScreen({ onReset, allowReset = true }: { onReset: () => void; allowReset?: boolean }) {
   return (
     <motion.div
       key="done"
@@ -70,12 +70,12 @@ export function SuccessScreen({ onReset }: { onReset: () => void }) {
           >
             <h2 className="success-card__title">Заявка отправлена</h2>
             <p className="success-card__sub">
-              Наш специалист свяжется с вами<br />в ближайшее время
+              Спасибо за участие!<br />Ваши ответы сохранены.
             </p>
           </motion.div>
 
           {/* Button */}
-          <motion.button
+          {allowReset && <motion.button
             className="success-card__btn"
             onClick={onReset}
             initial={{ opacity: 0, y: 8 }}
@@ -85,7 +85,7 @@ export function SuccessScreen({ onReset }: { onReset: () => void }) {
             whileTap={{ scale: 0.97 }}
           >
             Отправить ещё одну заявку
-          </motion.button>
+          </motion.button>}
         </motion.div>
       </div>
     </motion.div>

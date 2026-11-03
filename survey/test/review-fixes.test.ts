@@ -17,10 +17,11 @@ test('adding a question to canvas places it on a rendered page; orphan questions
 test('CSV preserves dynamic/historical/other answers, escapes delimiters and formulas', () => {
   const config: SurveyConfigData = { questions: [{ id: 'q', title: 'Вопрос; "один"', type: 'checkbox', options: ['A'], hasOther: true }] }
   const row = { id: 1, created_at: '2026-01-01', name: '=1+1', phone: '+79990000000', status: 'new',
+    config_snapshot: config, snapshot_source: 'legacy_backfill',
     answers: { q: ['A', '__other__'], q__other: 'Custom; value', deleted: 'Historical' } } as unknown as SurveyRecord
   const csv = buildResponsesCsv([row], [], config)
   assert.ok(csv.startsWith('\uFEFF'))
-  assert.ok(csv.includes('"Вопрос; ""один"""'))
+  assert.ok(csv.includes('Вопрос; ""один"" · схема при миграции'))
   assert.ok(csv.includes('"A, Custom; value"'))
   assert.ok(csv.includes('"Historical"'))
   assert.ok(csv.includes('"\'=1+1"'))
@@ -51,4 +52,18 @@ test('failed autosave retains the edit and exposes an error until retry succeeds
   await queue.flush()
   assert.equal(attempts, 2)
   assert.equal(queue.getSnapshot().status, 'idle')
+})
+
+test('discard while saving drops queued edits before waiting for the active request', async () => {
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  const saved: string[] = []
+  const queue = new ConfigAutosave(async config => { saved.push(config.welcome_title!); await gate })
+  queue.schedule({ questions: [], welcome_title: 'in flight' })
+  const first = queue.flush()
+  queue.schedule({ questions: [], welcome_title: 'discarded' })
+  const discard = queue.discard()
+  release()
+  await Promise.all([first, discard])
+  assert.deepEqual(saved, ['in flight'])
 })

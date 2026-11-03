@@ -5,6 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "check": "npm run build && npm test && npm run build:edge",
+    "test:integration": "node --import tsx scripts/test-database.mjs",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",

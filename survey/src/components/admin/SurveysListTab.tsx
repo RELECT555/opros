@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, easeOut } from 'framer-motion'
+import { SurveyCreateIntro } from '../../features/surveys/SurveyCreateIntro'
+import { SurveyCreateForm } from '../../features/surveys/SurveyCreateForm'
+import { SurveyAccessDialog } from '../../features/surveys/SurveyAccessDialog'
+import { SurveyEditDialog } from '../../features/surveys/SurveyEditDialog'
+import { SurveyDeleteDialog } from '../../features/surveys/SurveyDeleteDialog'
 import {
   getSurveys,
   createSurvey,
@@ -16,6 +20,7 @@ import { SURVEY_STICKER_PRESETS, SURVEY_STICKER_MAX_LEN, getSurveyStickerIcon } 
 
 interface Props {
   onSelect: (survey: Survey, options?: { openTab?: 'builder' }) => void
+  onListChange?: (surveys: Survey[]) => void
   /** Глобальный админ: выдача доступа к опросу по email */
   canGrantAccess?: boolean
 }
@@ -40,7 +45,7 @@ function isSurveyCreateIntroHidden(): boolean {
   }
 }
 
-export function SurveysListTab({ onSelect, canGrantAccess = false }: Props) {
+export function SurveysListTab({ onSelect, onListChange, canGrantAccess = false }: Props) {
   const [surveys, setSurveys] = useState<Survey[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -73,6 +78,10 @@ export function SurveysListTab({ onSelect, canGrantAccess = false }: Props) {
   const [deleteErr, setDeleteErr] = useState('')
 
   useEffect(() => {
+    if (!loading) onListChange?.(surveys)
+  }, [surveys, loading, onListChange])
+
+  useEffect(() => {
     let active = true
     getSurveys().then(rows => { if (active) setSurveys(rows) })
       .catch(e => { if (active) setError(e.message ?? 'Ошибка загрузки') })
@@ -98,15 +107,6 @@ export function SurveysListTab({ onSelect, canGrantAccess = false }: Props) {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [showCreateIntro])
-
-  useEffect(() => {
-    if (!showCreateIntro) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-    }
   }, [showCreateIntro])
 
   useEffect(() => {
@@ -236,9 +236,9 @@ export function SurveysListTab({ onSelect, canGrantAccess = false }: Props) {
 
     setStickerSavingFor(survey.id)
     try {
-      await updateSurveyConfig(survey.id, nextConfig)
+      const saved = await updateSurveyConfig(survey.id, nextConfig, survey.revision)
       setSurveys(prev => prev.map(s => (
-        s.id === survey.id ? { ...s, config: nextConfig } : s
+        s.id === survey.id ? saved : s
       )))
       setStickerPickerFor(null)
     } catch (e: unknown) {
@@ -282,138 +282,10 @@ export function SurveysListTab({ onSelect, canGrantAccess = false }: Props) {
 
   return (
     <div className="adm-tab-content">
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {showCreateIntro && (
-            <motion.div
-              key="surveys-create-intro"
-              className="surveys-onboard-root"
-              role="presentation"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => setShowCreateIntro(false)}
-            >
-              <motion.div
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="surveys-onboard-title"
-                className="surveys-onboard-dialog"
-                initial={{ opacity: 0, y: 16, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 12, scale: 0.98 }}
-                transition={{ duration: 0.28, ease: easeOut }}
-                onClick={e => e.stopPropagation()}
-              >
-              <div className="surveys-onboard-head">
-                <div className="surveys-onboard-head-text">
-                  <h2 id="surveys-onboard-title" className="surveys-onboard-title">
-                    Как вы хотите создать опрос?
-                  </h2>
-                  <p className="surveys-onboard-lead">
-                    Нажмите на вариант ниже — покажем, чем они отличаются. Это только стартовая заготовка: дальше всё настраивается в админке.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="surveys-onboard-close"
-                  onClick={() => setShowCreateIntro(false)}
-                  aria-label="Закрыть"
-                >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                    <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
-                </button>
-              </div>
-
-              <div className="surveys-onboard-pick-grid">
-                <button
-                  type="button"
-                  className={`surveys-onboard-pick ${createMode === 'classic' ? 'surveys-onboard-pick--on' : ''}`}
-                  onClick={() => setCreateMode('classic')}
-                >
-                  <span className="surveys-onboard-pick-label">Классика — как по шаблону</span>
-                  <span className="surveys-onboard-pick-hint">Список вопросов во вкладке «Вопросы»</span>
-                  <span className="surveys-onboard-wire surveys-onboard-wire--classic" aria-hidden>
-                    <span className="surveys-onboard-wire-row" />
-                    <span className="surveys-onboard-wire-row" />
-                    <span className="surveys-onboard-wire-row surveys-onboard-wire-row--short" />
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`surveys-onboard-pick ${createMode === 'canvas' ? 'surveys-onboard-pick--on' : ''}`}
-                  onClick={() => setCreateMode('canvas')}
-                >
-                  <span className="surveys-onboard-pick-label">С нуля — конструктор</span>
-                  <span className="surveys-onboard-pick-hint">Страницы, блоки текста и ширина карточек</span>
-                  <span className="surveys-onboard-wire surveys-onboard-wire--canvas" aria-hidden>
-                    <span className="surveys-onboard-wire-page" />
-                    <span className="surveys-onboard-wire-page surveys-onboard-wire-page--sm" />
-                  </span>
-                </button>
-              </div>
-
-              <div className="surveys-onboard-detail" key={createMode}>
-                {createMode === 'classic' ? (
-                  <>
-                    <p className="surveys-onboard-detail-title">Классика</p>
-                    <ul className="surveys-onboard-bullets">
-                      <li>Пустой опрос и привычный список вопросов: тип, текст, варианты ответов.</li>
-                      <li>Удобно, если нужен быстрый старт без визуальной сцены и отдельных «экранов».</li>
-                      <li>Респондент видит вопросы в линейном потоке — как в типовом опроснике.</li>
-                    </ul>
-                  </>
-                ) : (
-                  <>
-                    <p className="surveys-onboard-detail-title">Конструктор</p>
-                    <ul className="surveys-onboard-bullets">
-                      <li>Отдельная вкладка «Конструктор»: страница приветствия и шаги с блоками на canvas.</li>
-                      <li>Можно расставить текст, кнопку «Начать», ширину карточек и порядок шагов.</li>
-                      <li>После создания сразу откроется конструктор — добавьте блоки и вопросы.</li>
-                    </ul>
-                  </>
-                )}
-              </div>
-
-              <div className="surveys-onboard-reassure">
-                <span className="surveys-onboard-reassure-icon" aria-hidden>
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                    <path d="M9 16.5a7.5 7.5 0 100-15 7.5 7.5 0 000 15z" stroke="currentColor" strokeWidth="1.3"/>
-                    <path d="M9 12.2V9M9 6.3h.01" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-                  </svg>
-                </span>
-                <p>
-                  Не переживайте из‑за выбора: это только то, с чего удобнее начать.
-                  Конструктор не «ломает» остальные опросы — у каждого свой режим.
-                  Если сомневаетесь, начните с классики: это спокойный и быстрый путь.
-                </p>
-              </div>
-
-              <label className="surveys-onboard-skip-label">
-                <input
-                  type="checkbox"
-                  checked={introDontShowAgain}
-                  onChange={e => setIntroDontShowAgain(e.target.checked)}
-                />
-                <span>Больше не показывать это окно</span>
-              </label>
-
-              <div className="surveys-onboard-actions">
-                <button type="button" className="surveys-onboard-btn-secondary" onClick={() => setShowCreateIntro(false)}>
-                  Назад
-                </button>
-                <button type="button" className="surveys-onboard-btn-primary" onClick={finishCreateIntro}>
-                  Понятно, ввести название и slug
-                </button>
-              </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+      <SurveyCreateIntro open={showCreateIntro}
+        state={{ mode: createMode, dontShowAgain: introDontShowAgain }}
+        actions={{ close: () => setShowCreateIntro(false), continue: finishCreateIntro,
+          changeMode: setCreateMode, changeDontShowAgain: setIntroDontShowAgain }} />
 
       <div className="qed-header">
         <div className="qed-header-row">
@@ -449,109 +321,10 @@ export function SurveysListTab({ onSelect, canGrantAccess = false }: Props) {
 
       {error && <p className="adm-err-banner">{error}</p>}
 
-      {/* Create form */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div
-            className="surveys-create-form"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2, ease: easeOut }}
-          >
-            <div className="surveys-create-header">
-              <div className="surveys-create-header-icon">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M7 1.5v11M1.5 7h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <h3 className="surveys-create-title">Новый опросник</h3>
-            </div>
-            <div className="surveys-create-fields">
-              <div className="surveys-create-field">
-                <label className="surveys-create-label">Название</label>
-                <input
-                  className="surveys-create-input"
-                  type="text"
-                  placeholder="Например: Обратная связь 2025"
-                  value={newTitle}
-                  onChange={e => handleTitleChange(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <div className="surveys-create-field">
-                <label className="surveys-create-label">URL-slug <span className="surveys-create-hint-text">латиница, цифры, дефисы</span></label>
-                <div className="surveys-slug-wrap">
-                  <span className="surveys-slug-prefix">/s/</span>
-                  <input
-                    className="surveys-create-input surveys-slug-input"
-                    type="text"
-                    placeholder="feedback-2025"
-                    value={newSlug}
-                    onChange={e => { setNewSlug(e.target.value); setSlugManual(true) }}
-                  />
-                </div>
-              </div>
-              <div className="surveys-create-field">
-                <label className="surveys-create-label">Описание <span className="surveys-create-hint-text">необязательно</span></label>
-                <input
-                  className="surveys-create-input"
-                  type="text"
-                  placeholder="Короткое описание опросника"
-                  value={newDesc}
-                  onChange={e => setNewDesc(e.target.value)}
-                />
-              </div>
-              <div className="surveys-create-field">
-                <span className="surveys-create-label">Как создать</span>
-                <div className="surveys-create-mode-grid">
-                  <button
-                    type="button"
-                    className={`surveys-create-mode-card ${createMode === 'classic' ? 'surveys-create-mode-card--on' : ''}`}
-                    onClick={() => setCreateMode('classic')}
-                  >
-                    <span className="surveys-create-mode-title">Классика</span>
-                    <span className="surveys-create-mode-desc">Пустой опрос и список вопросов во вкладке «Вопросы»</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`surveys-create-mode-card ${createMode === 'canvas' ? 'surveys-create-mode-card--on' : ''}`}
-                    onClick={() => setCreateMode('canvas')}
-                  >
-                    <span className="surveys-create-mode-title">С нуля</span>
-                    <span className="surveys-create-mode-desc">Страницы, блоки текста и ширина карточек в конструкторе</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="surveys-create-footer">
-              <p className="surveys-create-footnote">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"/>
-                  <path d="M6 5.5v3M6 4h.01" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                </svg>
-                {createMode === 'canvas'
-                  ? 'Откроется вкладка «Конструктор» — добавьте блоки и вопросы'
-                  : 'После создания добавьте вопросы во вкладке «Вопросы»'}
-              </p>
-              <button
-                className="surveys-create-btn"
-                onClick={handleCreate}
-                disabled={creating || !newTitle.trim() || !newSlug.trim()}
-              >
-                {creating ? <span className="adm-spinner adm-spinner--sm" /> : (
-                  <>
-                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-                      <path d="M6.5 2v9M2 6.5h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                    Создать
-                  </>
-                )}
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <SurveyCreateForm open={showForm}
+        state={{ title: newTitle, slug: newSlug, description: newDesc, mode: createMode, busy: creating }}
+        actions={{ changeTitle: handleTitleChange, changeSlug: value => { setNewSlug(value); setSlugManual(true) },
+          changeDescription: setNewDesc, changeMode: setCreateMode, create: handleCreate }} />
 
       {/* Survey cards */}
       {surveys.length === 0 ? (
@@ -686,7 +459,7 @@ export function SurveysListTab({ onSelect, canGrantAccess = false }: Props) {
                         setEditSlug(survey.slug)
                         setEditDesc(survey.description ?? '')
                         setEditActive(survey.is_active)
-                        setEditSlugManual(false)
+                        setEditSlugManual(true)
                         setEditErr('')
                         setEditModal(survey)
                       }}
@@ -746,303 +519,16 @@ export function SurveysListTab({ onSelect, canGrantAccess = false }: Props) {
         </div>
       )}
 
-      {/* Access grant modal */}
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {accessModal && (
-            <motion.div
-              key="access-modal-backdrop"
-              className="surveys-onboard-root"
-              role="presentation"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              onClick={() => { if (!accessBusy) setAccessModal(null) }}
-            >
-              <motion.div
-                role="dialog"
-                aria-modal="true"
-                className="surveys-onboard-dialog"
-                style={{ maxWidth: 420, gap: 16 }}
-                initial={{ opacity: 0, y: 16, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 12, scale: 0.98 }}
-                transition={{ duration: 0.22, ease: easeOut }}
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="surveys-onboard-head">
-                  <div className="surveys-onboard-head-text">
-                    <h2 className="surveys-onboard-title" style={{ fontSize: 16 }}>
-                      Выдать доступ к «{accessModal.surveyTitle}»
-                    </h2>
-                  </div>
-                  <button
-                    type="button"
-                    className="surveys-onboard-close"
-                    onClick={() => setAccessModal(null)}
-                    disabled={accessBusy}
-                    aria-label="Закрыть"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                      <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="surveys-create-field" style={{ margin: 0 }}>
-                  <label className="surveys-create-label">Email пользователя</label>
-                  <input
-                    className="surveys-create-input"
-                    type="email"
-                    placeholder="user@example.com"
-                    value={accessEmail}
-                    onChange={e => { setAccessEmail(e.target.value); setAccessResult(null) }}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && accessEmail.trim() && !accessBusy) {
-                        handleGrantAccess()
-                      }
-                    }}
-                    autoFocus
-                    disabled={accessBusy}
-                  />
-                  <p className="surveys-create-hint-text" style={{ marginTop: 6, fontSize: 12, opacity: 0.6 }}>
-                    Пользователь должен хотя бы раз войти через Google или Microsoft
-                  </p>
-                </div>
-
-                {accessResult && (
-                  <p style={{
-                    fontSize: 13,
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    background: accessResult.startsWith('✓') ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
-                    color: accessResult.startsWith('✓') ? '#34d399' : '#f87171',
-                    margin: 0,
-                  }}>
-                    {accessResult}
-                  </p>
-                )}
-
-                <div className="surveys-onboard-actions" style={{ marginTop: 4 }}>
-                  <button
-                    type="button"
-                    className="surveys-onboard-btn-secondary"
-                    onClick={() => setAccessModal(null)}
-                    disabled={accessBusy}
-                  >
-                    Отмена
-                  </button>
-                  <button
-                    type="button"
-                    className="surveys-onboard-btn-primary"
-                    onClick={handleGrantAccess}
-                    disabled={accessBusy || !accessEmail.trim()}
-                  >
-                    {accessBusy ? <span className="adm-spinner adm-spinner--sm" /> : 'Выдать доступ'}
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
-
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {editModal && (
-            <motion.div
-              key="edit-survey-modal"
-              className="surveys-onboard-root"
-              role="presentation"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              onClick={() => { if (!editBusy) setEditModal(null) }}
-            >
-              <motion.div
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="surveys-edit-title"
-                className="surveys-onboard-dialog"
-                style={{ maxWidth: 440, gap: 14 }}
-                initial={{ opacity: 0, y: 16, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 12, scale: 0.98 }}
-                transition={{ duration: 0.22, ease: easeOut }}
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="surveys-onboard-head">
-                  <div className="surveys-onboard-head-text">
-                    <h2 id="surveys-edit-title" className="surveys-onboard-title" style={{ fontSize: 16 }}>
-                      Редактировать опросник
-                    </h2>
-                  </div>
-                  <button
-                    type="button"
-                    className="surveys-onboard-close"
-                    onClick={() => setEditModal(null)}
-                    disabled={editBusy}
-                    aria-label="Закрыть"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                      <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="surveys-create-fields" style={{ gap: 12 }}>
-                  <div className="surveys-create-field" style={{ margin: 0 }}>
-                    <label className="surveys-create-label">Название</label>
-                    <input
-                      className="surveys-create-input"
-                      type="text"
-                      value={editTitle}
-                      onChange={e => handleEditTitleChange(e.target.value)}
-                      disabled={editBusy}
-                    />
-                  </div>
-                  <div className="surveys-create-field" style={{ margin: 0 }}>
-                    <label className="surveys-create-label">URL-slug</label>
-                    <div className="surveys-slug-wrap">
-                      <span className="surveys-slug-prefix">/s/</span>
-                      <input
-                        className="surveys-create-input surveys-slug-input"
-                        type="text"
-                        value={editSlug}
-                        onChange={e => { setEditSlug(e.target.value); setEditSlugManual(true) }}
-                        disabled={editBusy}
-                      />
-                    </div>
-                  </div>
-                  <div className="surveys-create-field" style={{ margin: 0 }}>
-                    <label className="surveys-create-label">Описание</label>
-                    <input
-                      className="surveys-create-input"
-                      type="text"
-                      placeholder="Необязательно"
-                      value={editDesc}
-                      onChange={e => setEditDesc(e.target.value)}
-                      disabled={editBusy}
-                    />
-                  </div>
-                  <label className="surveys-edit-active-row">
-                    <input
-                      type="checkbox"
-                      checked={editActive}
-                      onChange={e => setEditActive(e.target.checked)}
-                      disabled={editBusy}
-                    />
-                    <span>Опрос активен (виден по ссылке)</span>
-                  </label>
-                </div>
-
-                {editErr && (
-                  <p className="surveys-modal-err">{editErr}</p>
-                )}
-
-                <div className="surveys-onboard-actions" style={{ marginTop: 4 }}>
-                  <button
-                    type="button"
-                    className="surveys-onboard-btn-secondary"
-                    onClick={() => setEditModal(null)}
-                    disabled={editBusy}
-                  >
-                    Отмена
-                  </button>
-                  <button
-                    type="button"
-                    className="surveys-onboard-btn-primary"
-                    onClick={() => void handleEditSave()}
-                    disabled={editBusy || !editTitle.trim() || !editSlug.trim()}
-                  >
-                    {editBusy ? <span className="adm-spinner adm-spinner--sm" /> : 'Сохранить'}
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
-
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {deleteModal && (
-            <motion.div
-              key="delete-survey-modal"
-              className="surveys-onboard-root"
-              role="presentation"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              onClick={() => { if (!deleteBusy) setDeleteModal(null) }}
-            >
-              <motion.div
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="surveys-delete-title"
-                className="surveys-onboard-dialog"
-                style={{ maxWidth: 420, gap: 14 }}
-                initial={{ opacity: 0, y: 16, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 12, scale: 0.98 }}
-                transition={{ duration: 0.22, ease: easeOut }}
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="surveys-onboard-head">
-                  <div className="surveys-onboard-head-text">
-                    <h2 id="surveys-delete-title" className="surveys-onboard-title" style={{ fontSize: 16 }}>
-                      Удалить опросник?
-                    </h2>
-                    <p className="surveys-delete-lead">
-                      «{deleteModal.title}» (/s/{deleteModal.slug}) будет удалён безвозвратно вместе со всеми ответами респондентов и персональными ссылками с токенами.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="surveys-onboard-close"
-                    onClick={() => setDeleteModal(null)}
-                    disabled={deleteBusy}
-                    aria-label="Закрыть"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                      <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                  </button>
-                </div>
-
-                {deleteErr && (
-                  <p className="surveys-modal-err">{deleteErr}</p>
-                )}
-
-                <div className="surveys-onboard-actions" style={{ marginTop: 4 }}>
-                  <button
-                    type="button"
-                    className="surveys-onboard-btn-secondary"
-                    onClick={() => setDeleteModal(null)}
-                    disabled={deleteBusy}
-                  >
-                    Отмена
-                  </button>
-                  <button
-                    type="button"
-                    className="surveys-onboard-btn-danger"
-                    onClick={() => void handleDeleteConfirm()}
-                    disabled={deleteBusy}
-                  >
-                    {deleteBusy ? <span className="adm-spinner adm-spinner--sm" /> : 'Удалить навсегда'}
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+      <SurveyAccessDialog open={accessModal !== null}
+        state={{ surveyTitle: accessModal?.surveyTitle ?? '', email: accessEmail, busy: accessBusy, result: accessResult }}
+        actions={{ close: () => { if (!accessBusy) setAccessModal(null) }, changeEmail: value => { setAccessEmail(value); setAccessResult(null) }, grant: handleGrantAccess }} />
+      <SurveyEditDialog open={editModal !== null}
+        state={{ title: editTitle, slug: editSlug, description: editDesc, active: editActive, busy: editBusy, error: editErr }}
+        actions={{ close: () => { if (!editBusy) setEditModal(null) }, save: handleEditSave, changeTitle: handleEditTitleChange,
+          changeSlug: value => { setEditSlug(value); setEditSlugManual(true) }, changeDescription: setEditDesc, changeActive: setEditActive }} />
+      <SurveyDeleteDialog open={deleteModal !== null}
+        state={{ title: deleteModal?.title ?? '', slug: deleteModal?.slug ?? '', busy: deleteBusy, error: deleteErr }}
+        actions={{ close: () => { if (!deleteBusy) setDeleteModal(null) }, confirm: handleDeleteConfirm }} />
     </div>
   )
 

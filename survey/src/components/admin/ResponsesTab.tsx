@@ -12,6 +12,7 @@ import type { SurveyRecord, TokenRecord, ResponseStatus, Survey } from '../../li
 import { ResponsesTabSkeleton } from './AdminSkeletons'
 import { buildResponsesCsv } from '../../lib/responsesCsv'
 import { useAdminRefresh } from '../../lib/useAdminRefresh'
+import { responseQuestions, responseSchemaLabel } from '../../domain/responseHistory'
 
 const CURRENT_LABELS: Record<string, string> = {
   yes:       'Да, используем CRM',
@@ -259,9 +260,10 @@ export function ResponsesTab({ surveyId, survey }: Props) {
 
                       <section className="adm-response-section">
                         <h3 className="adm-response-section-title">Ответы анкеты</h3>
+                        <p>{responseSchemaLabel(row)}</p>
                         <div className="adm-response-answers">
                           {row.answers && Object.keys(row.answers).length > 0
-                            ? survey.config.questions.map(q => {
+                            ? responseQuestions(row).map(q => {
                                 const ans = row.answers![q.id]
                                 if (ans === undefined || ans === null || ans === '' || (Array.isArray(ans) && ans.length === 0)) return null
                                 const otherText = row.answers![q.id + '__other'] as string | undefined

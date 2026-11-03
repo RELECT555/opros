@@ -1,5 +1,5 @@
 import { easeOut } from 'framer-motion'
-export const phoneRegex = /^[\d\s+\-()]{7,}$/
+export { phoneRegex } from '../../../lib/validation'
 
 export const slideVariants = {
   enter: (dir: number) => ({

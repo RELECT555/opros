@@ -14,6 +14,7 @@ export type SurveyQuestion = {
   scaleMin?: number
   scaleMax?: number
   optionsLayout?: 'grid' | 'list'
+  media?: { kind: 'image' | 'video' | 'embed'; url: string; alt?: string }
 }
 
 export type SurveyTypeScale = 'compact' | 'normal' | 'large'
@@ -57,9 +58,14 @@ export type SurveyCanvasBlock =
       body: string
       align?: 'left' | 'center' | 'right'
       minHeightPx?: number
+      xPct?: number
+      yPx?: number
+      widthPct?: number
+      fontSizePx?: number
     }
-  | { id: string; type: 'spacer'; height: number }
-  | { id: string; type: 'divider' }
+  | { id: string; type: 'spacer'; height: number; xPct?: number; yPx?: number; widthPct?: number }
+  | { id: string; type: 'divider'; xPct?: number; yPx?: number; widthPct?: number }
+  | { id: string; type: 'cta'; label?: string; xPct?: number; yPx?: number; widthPct?: number }
   | { id: string; type: 'question'; questionId: string }
 export type SurveyCanvasPage = {
   id: string
@@ -117,6 +123,7 @@ export type SurveyConfigData = {
 
 export type Survey = {
   id: number
+  revision: number
   slug: string
   title: string
   description?: string
@@ -131,6 +138,9 @@ export type SurveyRecord = {
   id: number
   created_at: string
   survey_id: number | null
+  survey_revision?: number | null
+  config_snapshot?: SurveyConfigData | null
+  snapshot_source?: 'submission' | 'legacy_backfill' | 'unavailable'
   name: string
   phone: string
   email?: string

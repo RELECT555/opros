@@ -1,0 +1,207 @@
+/* ── Stepped survey nav ──────────────────────────────── */
+.survey--stepped {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 20px 28px;
+  max-width: 580px;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+/* «Все сразу»: без лишнего неба — раньше padding-top 48px + min-height 100vh раздували верх */
+.survey--stepped.survey--all {
+  padding-top: clamp(8px, 1.8vh, 16px);
+  padding-bottom: max(24px, env(safe-area-inset-bottom, 0px) + 16px);
+  min-height: 0;
+}
+
+/* Top bar: progress dots + view toggle */
+.sf-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+  margin-bottom: 2px;
+}
+
+/* Пошаговый режим: плотнее шапка карточки, текст выше */
+.survey--stepped .qcard {
+  padding: 20px 24px 26px 28px;
+}
+.survey--stepped .qcard-head {
+  margin-bottom: 16px;
+}
+.survey--stepped .qcard-step {
+  margin-bottom: 8px;
+}
+.survey--stepped .qcard-title {
+  margin-bottom: 4px;
+  font-size: 21px;
+}
+.survey--stepped .qcard-sub {
+  margin-bottom: 0;
+}
+
+.sf-all-counter {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.35);
+}
+
+/* View mode toggle */
+.sf-view-toggle {
+  display: flex;
+  gap: 4px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.sf-view-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.35);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.sf-view-btn:hover {
+  color: rgba(255,255,255,0.6);
+}
+
+.sf-view-btn--on {
+  background: rgba(91,115,249,0.18);
+  color: #a5b4fc;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+/* All-at-once list */
+.sf-all-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sf-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.sf-progress-counter {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.35);
+  white-space: nowrap;
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+}
+
+.sf-progress-of {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.sf-card-wrap {
+  position: relative;
+  min-height: 0;
+}
+
+.sf-nav {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+/* Последний шаг (контакты): не ставим «Назад» в один ряд с согласием */
+.sf-nav--final {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.sf-nav-final-consent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.sf-nav--final .sf-nav-btn--back {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+
+.sf-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.5);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+
+.sf-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.sf-nav-btn--back:not(:disabled):hover {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.8);
+}
+
+.sf-nav-btn--next {
+  margin-left: auto;
+  background: rgba(91,115,249,0.1);
+  border-color: rgba(91,115,249,0.2);
+  color: rgba(255,255,255,0.35);
+}
+
+.sf-nav-btn--next.sf-nav-btn--active {
+  background: var(--accent, #5b73f9);
+  border-color: var(--accent, #5b73f9);
+  color: #fff;
+}
+
+.sf-nav-btn--next.sf-nav-btn--active:hover {
+  opacity: 0.88;
+}
+
+.sf-nav-submit-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.consent-card--inline {
+  padding: 12px 14px;
+}
+

@@ -30,11 +30,11 @@ before(async () => {
   // Exercise the actual transaction/route while keeping real databases untouched.
   db.connect = (async () => ({
     query: async (sql: string, values?: unknown[]) => {
-      if (sql.includes('select is_active')) return { rows: [{ is_active: true, config }] }
+      if (sql.includes('select is_active')) return { rows: [{ is_active: true, config, revision: 1 }] }
       if (sql.includes('select survey_id, used_at')) return { rows: [invitation] }
       if (sql.includes('insert into survey_responses')) {
         inserts.push(values!)
-        return { rows: [{ id: 1, survey_id: 1, name: values![2], phone: values![3], email: values![4] }] }
+        return { rows: [{ id: 1, survey_id: 1, name: values![2], phone: values![3], email: values![4], survey_revision: values![10], config_snapshot: JSON.parse(values![11] as string), snapshot_source: 'submission' }] }
       }
       if (sql.includes('update survey_tokens')) tokenUpdates++
       return { rows: [] }
@@ -52,30 +52,70 @@ test.beforeEach(() => {
 })
 
 test('disabled or optional contacts can be submitted, default required contacts cannot', async () => {
-  let response = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, answers: { q: 'A' } } })
+  let response = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, survey_revision: 1, answers: { q: 'A' } } })
   assert.equal(response.statusCode, 201)
   assert.equal(inserts[0][2], '')
   config.contacts_block = { name: { required: false }, phone: { enabled: false } }
-  response = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, answers: { q: 'B' } } })
+  response = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, survey_revision: 1, answers: { q: 'B' } } })
   assert.equal(response.statusCode, 201)
   delete config.contacts_block
-  response = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, answers: { q: 'A' }, name: ' ', phone: 'abcde' } })
+  response = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, survey_revision: 1, answers: { q: 'A' }, name: ' ', phone: 'abcde' } })
   assert.equal(response.statusCode, 400)
   assert.equal(inserts.length, 2)
 })
 
 test('incomplete or forged answers are rejected before insert and token consumption', async () => {
   for (const answers of [{}, { q: 'forged' }, { q: ['A'] }, { q: 'A', unknown: 'x' }]) {
-    const response = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, answers, token: 'a'.repeat(32) } })
+    const response = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, survey_revision: 1, answers, token: 'a'.repeat(32) } })
     assert.equal(response.statusCode, 400)
   }
   assert.equal(inserts.length, 0)
   assert.equal(tokenUpdates, 0)
 })
 
+test('missing or stale schema revision cannot create a response or consume an invitation', async () => {
+  const missing = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, answers: { q: 'A' } } })
+  assert.equal(missing.statusCode, 400)
+  const stale = await app.inject({ method: 'POST', url: '/api/responses', payload: {
+    survey_id: 1, survey_revision: 2, answers: { q: 'A' }, token: 'a'.repeat(32),
+  } })
+  assert.equal(stale.statusCode, 409)
+  assert.equal(stale.json().code, 'SURVEY_REVISION_CONFLICT')
+  assert.equal(stale.json().current_revision, 1)
+  assert.equal(inserts.length, 0)
+  assert.equal(tokenUpdates, 0)
+})
+
+test('a submission stores its exact schema snapshot rather than a mutable reference', async () => {
+  config.welcome_title = 'Decorative copy'
+  config.design = { accent: '#abcdef' }
+  const response = await app.inject({ method: 'POST', url: '/api/responses', payload: {
+    survey_id: 1, survey_revision: 1, answers: { q: 'A' },
+  } })
+  assert.equal(response.statusCode, 201)
+  assert.equal(inserts[0][10], 1)
+  const snapshot = JSON.parse(inserts[0][11] as string) as SurveyConfigData
+  assert.equal(snapshot.welcome_title, undefined)
+  assert.equal(snapshot.design, undefined)
+  config = { ...config, questions: [] }
+  assert.equal(snapshot.questions[0].title, choice.title)
+  assert.deepEqual(response.json().config_snapshot, snapshot)
+  assert.equal(response.json().snapshot_source, 'submission')
+})
+
+test('a malformed legacy config returns a controlled error without saving', async () => {
+  config = { questions: 'invalid' } as unknown as SurveyConfigData
+  const response = await app.inject({ method: 'POST', url: '/api/responses', payload: {
+    survey_id: 1, survey_revision: 1, answers: {},
+  } })
+  assert.equal(response.statusCode, 409)
+  assert.equal(response.json().code, 'INVALID_SURVEY_CONFIG')
+  assert.equal(inserts.length, 0)
+})
+
 test('invitation email satisfies a hidden required email field', async () => {
   config.contacts_block = { name: { enabled: false }, phone: { enabled: false }, email: { required: true } }
-  const response = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, answers: { q: 'A' }, token: 'a'.repeat(32) } })
+  const response = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, survey_revision: 1, answers: { q: 'A' }, token: 'a'.repeat(32) } })
   assert.equal(response.statusCode, 201)
   assert.equal(inserts[0][4], 'invite@example.com')
   assert.equal(tokenUpdates, 1)
@@ -84,7 +124,7 @@ test('invitation email satisfies a hidden required email field', async () => {
 test('foreign and used invitations are rejected without saving', async () => {
   for (const state of [{ survey_id: 2, used_at: null }, { survey_id: 1, used_at: '2026-01-01' }]) {
     Object.assign(invitation, state)
-    const response = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, answers: { q: 'A' }, token: 'a'.repeat(32) } })
+    const response = await app.inject({ method: 'POST', url: '/api/responses', payload: { survey_id: 1, survey_revision: 1, answers: { q: 'A' }, token: 'a'.repeat(32) } })
     assert.equal(response.statusCode, 409)
   }
   assert.equal(inserts.length, 0)

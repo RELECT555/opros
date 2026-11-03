@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useSyncExternalStore, memo } from 'react'
+import { useState, useEffect, useSyncExternalStore, memo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 import { getSurveyBySlug, getInvitation, saveSurveyResponseGeneric, markTokenOpened, updateSurveyConfig } from '../lib/api-client'
@@ -38,6 +38,7 @@ import { SurveyFormEntry } from '../components/survey/SurveyFormEntry'
 import type { DynamicFormData } from '../components/survey/DynamicSurveyForm'
 import { SuccessScreen } from '../components/survey/SuccessScreen'
 import { isConstructorCanvasUnlock } from '../lib/liveEditLinks'
+import { ApiError } from '../lib/apiError'
 import '../styles/survey.css'
 
 const GlobalSparkles = memo(() => (
@@ -59,6 +60,16 @@ interface Props {
   slug: string
 }
 
+function createAutosave(survey: Survey, onSaved: (saved: Survey) => void) {
+  const queue = new ConfigAutosave(async config => {
+    const saved = await updateSurveyConfig(survey.id, config, queue.getRevision())
+    queue.setRevision(saved.revision)
+    onSaved(saved)
+  })
+  queue.setRevision(survey.revision)
+  return queue
+}
+
 export default function SurveyPage({ slug }: Props) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [adminOk, setAdminOk] = useState(() => isAdminAuthenticated())
@@ -67,6 +78,7 @@ export default function SurveyPage({ slug }: Props) {
   const [screen, setScreen] = useState<'welcome' | 'survey'>('welcome')
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
+  const [revisionConflict, setRevisionConflict] = useState(false)
   const [form, setForm] = useState<DynamicFormData>({
     answers: {},
     name: '',
@@ -76,8 +88,7 @@ export default function SurveyPage({ slug }: Props) {
     consentChecks: {},
   })
   const token = searchParams.get('t') || undefined
-  const surveyId = survey?.id
-  const autosave = useMemo(() => new ConfigAutosave(cfg => updateSurveyConfig(surveyId!, cfg)), [surveyId])
+  const [autosave, setAutosave] = useState(() => new ConfigAutosave(async () => {}))
   const saveState = useSyncExternalStore(autosave.subscribe, autosave.getSnapshot)
 
   useEffect(() => () => { void autosave.flush() }, [autosave])
@@ -145,7 +156,7 @@ export default function SurveyPage({ slug }: Props) {
       queueMicrotask(() => { if (!cancelled) setLoadError('Некорректная ссылка на опрос') })
       return () => { cancelled = true }
     }
-    queueMicrotask(() => { if (!cancelled) { setLoadError(''); setSurvey(null); setStatus('idle'); setScreen('welcome') } })
+    queueMicrotask(() => { if (!cancelled) { setLoadError(''); setSurvey(null); setStatus('idle'); setRevisionConflict(false); setScreen('welcome') } })
     getSurveyBySlug(slug.trim())
       .then(async s => {
         if (cancelled) return
@@ -160,6 +171,9 @@ export default function SurveyPage({ slug }: Props) {
         const invitation = token ? await getInvitation(token, s.id) : null
         if (cancelled) return
         setSurvey(s)
+        setAutosave(createAutosave(s, saved => {
+          setSurvey(current => current?.id === saved.id ? { ...current, revision: saved.revision } : current)
+        }))
         setForm({ ...emptyFormData(orderedQuestionsFromCanvas(s.config), s.config.contacts_block), email: invitation?.email ?? '' })
         if (token) void markTokenOpened(token)
         applySurveyDesign(s.config.design)
@@ -214,11 +228,12 @@ export default function SurveyPage({ slug }: Props) {
     allRequiredConsentsChecked(form, contactsResolved)
 
   async function handleSubmit() {
-    if (!canSubmit) return
+    if (!canSubmit || status === 'loading' || revisionConflict) return
     setStatus('loading')
     try {
       await saveSurveyResponseGeneric({
         surveyId: survey!.id,
+        surveyRevision: autosave.getRevision(),
         answers: form.answers,
         name: form.name.trim(),
         phone: form.phone.trim(),
@@ -228,6 +243,7 @@ export default function SurveyPage({ slug }: Props) {
       })
       setStatus('done')
     } catch (e: unknown) {
+      if (e instanceof ApiError && e.code === 'SURVEY_REVISION_CONFLICT') setRevisionConflict(true)
       setErrorMsg(e instanceof Error ? e.message : 'Ошибка отправки')
       setStatus('error')
     }
@@ -238,6 +254,18 @@ export default function SurveyPage({ slug }: Props) {
     setForm(emptyFormData(questions, survey.config.contacts_block))
     setStatus('idle')
     setScreen('welcome')
+  }
+
+  async function reloadLatestConfig() {
+    if (!survey) return
+    await autosave.discard()
+    const latest = await getSurveyBySlug(survey.slug)
+    if (!latest) return
+    setSurvey(latest)
+    setAutosave(createAutosave(latest, saved => {
+      setSurvey(current => current?.id === saved.id ? { ...current, revision: saved.revision } : current)
+    }))
+    setForm(emptyFormData(orderedQuestionsFromCanvas(latest.config), latest.config.contacts_block))
   }
 
   async function handleLiveQuestionSave(updated: SurveyQuestion, index: number) {
@@ -278,6 +306,7 @@ export default function SurveyPage({ slug }: Props) {
               {saveState.status === 'error' ? (
                 <span role="alert">Не удалось сохранить: {saveState.error}{' '}
                   <button type="button" className="survey-admin-bar-btn" onClick={() => void autosave.flush()}>Повторить сохранение</button>
+                  <button type="button" className="survey-admin-bar-btn" onClick={() => void reloadLatestConfig().catch(e => setErrorMsg(String(e)))}>Отбросить правки и загрузить с сервера</button>
                 </span>
               ) : <span>{saveState.status === 'idle' ? 'Все изменения сохранены' : 'Сохранение…'}</span>}
             </div>
@@ -336,7 +365,7 @@ export default function SurveyPage({ slug }: Props) {
             onWelcomePatch={showCanvasLiveTools ? persistCanvasConfig : undefined}
           />
         ) : status === 'done' ? (
-          <SuccessScreen key="done" onReset={handleReset} />
+          <SuccessScreen key="done" onReset={handleReset} allowReset={!token} />
         ) : (
           <SurveyFormEntry
             key="form"
@@ -344,7 +373,8 @@ export default function SurveyPage({ slug }: Props) {
             form={form}
             setForm={setForm}
             status={status}
-            canSubmit={canSubmit}
+            canSubmit={canSubmit && !revisionConflict}
+            submitBlockedMessage={revisionConflict ? 'Опрос изменился — обновите страницу' : undefined}
             contactsBlock={contactsResolved}
             handleSubmit={handleSubmit}
             errorMsg={errorMsg}

@@ -1,6 +1,6 @@
 {
   "installCommand": "cd survey && npm ci --no-audit --no-fund",
-  "buildCommand": "cd survey && npm run build",
+  "buildCommand": "cd survey && npm run check",
   "outputDirectory": "survey/dist",
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://hsxrcqbbekwgeiyqrqoy.supabase.co/functions/v1/opros-api/api/:path*" },

@@ -1,0 +1,469 @@
+/* ── Main area ── */
+.adm-main {
+  flex: 1 1 0;
+  width: 100%;
+  max-width: none;
+  padding: 40px 40px 80px;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+/* AnimatePresence / motion обёртки должны занимать всю ширину колонки */
+.adm-main > div {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.adm-tab-content {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+.adm-updates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+}
+
+.adm-product-update-card {
+  margin-bottom: 0;
+  padding: 20px 22px;
+}
+
+.adm-product-update-date {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  opacity: 0.9;
+  margin-bottom: 10px;
+}
+
+.adm-product-update-title {
+  margin: 0 0 12px;
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.adm-product-update-items {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.adm-product-update-items li + li {
+  margin-top: 6px;
+}
+
+/* ── Section header ── */
+.adm-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 12px;
+}
+
+.adm-section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.adm-section-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--text);
+  margin: 0;
+}
+
+.adm-head-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.adm-head-actions .adm-btn-primary {
+  width: auto;
+}
+
+.adm-badge {
+  background: rgba(var(--accent-rgb),0.18);
+  border: 1px solid rgba(var(--accent-rgb),0.3);
+  color: var(--accent);
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.adm-hint {
+  font-size: 13px;
+  color: var(--text-3);
+  margin: -12px 0 24px;
+}
+
+/* ── Buttons ── */
+.adm-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border-hi);
+  color: var(--text-2);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.adm-btn-ghost:hover { border-color: var(--adm-a2); color: var(--text); }
+.adm-btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.adm-leads-hint {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+/* ── Платформа «Демо-заявки» внутри Askly Admin ───────────── */
+
+.adm-platform-switch {
+  display: flex;
+  gap: 6px;
+  padding: 0 10px 14px;
+  margin: 0 0 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.adm-root[data-adm-mode="light"] .adm-platform-switch {
+  border-bottom-color: rgba(0,0,0,0.08);
+}
+
+.adm-platform-switch-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255,255,255,0.03);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.adm-root[data-adm-mode="light"] .adm-platform-switch-btn {
+  background: rgba(0,0,0,0.03);
+}
+
+.adm-platform-switch-btn:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.06);
+}
+
+.adm-platform-switch-btn--active {
+  color: var(--text);
+  border-color: rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.12);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.15);
+}
+
+.adm-platform-switch-label {
+  line-height: 1.2;
+  text-align: center;
+}
+
+.adm-sidebar--collapsed .adm-platform-switch {
+  flex-direction: column;
+  padding: 0 6px 10px;
+}
+
+.adm-sidebar--collapsed .adm-platform-switch-label {
+  display: none;
+}
+
+.adm-sidebar--collapsed .adm-platform-switch-btn {
+  padding: 10px 6px;
+}
+
+/* ── Переключатель рабочего пространства в сайдбаре ── */
+.adm-workspace-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 10px 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
+  background: rgba(var(--accent-rgb), 0.07);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  width: calc(100% - 20px);
+  text-align: left;
+}
+
+.adm-workspace-pill:hover {
+  background: rgba(var(--accent-rgb), 0.14);
+  border-color: rgba(var(--accent-rgb), 0.4);
+  color: var(--text);
+}
+
+.adm-workspace-pill-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+}
+
+.adm-workspace-pill-label {
+  flex: 1;
+  color: var(--text);
+}
+
+.adm-sidebar--collapsed .adm-workspace-pill {
+  justify-content: center;
+  padding: 8px 6px;
+}
+
+.adm-sidebar--collapsed .adm-workspace-pill-label,
+.adm-sidebar--collapsed .adm-workspace-pill > svg:last-child {
+  display: none;
+}
+
+.adm-demo-leads-sidebar-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.adm-demo-leads-sidebar-note {
+  padding: 8px 12px 16px;
+  margin: 4px 8px 10px;
+  border-radius: 10px;
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.adm-demo-leads-sidebar-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0.9;
+}
+
+.adm-demo-leads-sidebar-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.adm-demo-leads-sidebar-hint {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-2);
+}
+
+.adm-main--demo-leads {
+  position: relative;
+}
+
+.adm-root[data-adm-platform="demo-leads"] .adm-orb--1 {
+  opacity: 0.35;
+}
+
+.adm-root[data-adm-platform="demo-leads"] .adm-orb--2 {
+  filter: hue-rotate(-18deg);
+  opacity: 0.28;
+}
+
+.adm-platform {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.adm-platform-hero {
+  margin-bottom: 28px;
+  padding: 20px 22px 22px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--accent-rgb), 0.22);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-rgb), 0.14) 0%,
+    rgba(var(--accent-rgb), 0.04) 50%,
+    transparent 100%
+  );
+}
+
+.adm-root[data-adm-mode="light"] .adm-platform-hero {
+  background: linear-gradient(
+    135deg,
+    rgba(var(--accent-rgb), 0.1) 0%,
+    rgba(255,255,255,0.6) 100%
+  );
+  border-color: rgba(var(--accent-rgb), 0.18);
+}
+
+.adm-platform-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.adm-platform-title {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.adm-platform-desc {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-2);
+  max-width: 52ch;
+}
+
+.adm-platform-content .adm-tab-content {
+  padding-top: 0;
+}
+
+.adm-btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 9px 20px;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(var(--accent-rgb),0.35);
+  transition: filter 0.15s, box-shadow 0.15s;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.adm-btn-primary:hover { filter: brightness(1.1); box-shadow: 0 6px 28px rgba(var(--accent-rgb),0.5); }
+
+.adm-btn-save {
+  width: auto;
+  padding: 8px 18px;
+}
+
+.adm-btn-saved {
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  box-shadow: 0 4px 16px rgba(34,197,94,0.3);
+}
+
+.adm-root[data-adm-mode="light"] .adm-btn-primary {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 86%, #0f172a 14%) 0%,
+    color-mix(in srgb, var(--accent-2) 78%, #1e1b4b 22%) 100%
+  );
+  color: #fff;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, rgba(15, 23, 42, 0.35) 60%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1px 2px rgba(15, 23, 42, 0.08),
+    0 4px 16px rgba(var(--accent-rgb), 0.32);
+}
+.adm-root[data-adm-mode="light"] .adm-btn-primary:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 2px 4px rgba(15, 23, 42, 0.08),
+    0 6px 22px rgba(var(--accent-rgb), 0.38);
+}
+.adm-root[data-adm-mode="light"] .adm-btn-saved {
+  background: linear-gradient(135deg, #15803d, #16a34a);
+  border: 1px solid rgba(21, 128, 61, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 2px 6px rgba(15, 23, 42, 0.08),
+    0 4px 14px rgba(22, 163, 74, 0.35);
+}
+
+/* ── Card (общая поверхность: заявки, аналитика, токены, редактор вопросов) ── */
+.adm-card {
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--surface) 94%, var(--accent) 6%) 0%,
+    var(--surface) 48%,
+    color-mix(in srgb, var(--surface) 88%, var(--bg) 12%) 100%
+  );
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow:
+    0 1px 3px var(--adm-shadow-20),
+    inset 0 1px 0 var(--adm-a05);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 10px;
+  transition:
+    border-color 0.45s cubic-bezier(0.33, 0, 0.2, 1),
+    box-shadow 0.45s cubic-bezier(0.33, 0, 0.2, 1);
+}
+
+.adm-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--adm-a10) 30%,
+    var(--adm-a15) 50%,
+    var(--adm-a10) 70%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+.adm-card--open {
+  border-color: rgba(var(--accent-rgb), 0.32);
+  box-shadow:
+    0 12px 40px var(--adm-shadow-35),
+    0 4px 14px var(--adm-shadow-25),
+    inset 0 1px 0 var(--adm-a08),
+    0 0 0 1px rgba(var(--accent-rgb), 0.1);
+}
+

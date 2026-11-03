@@ -1,0 +1,110 @@
+/* ── Theme: white-alpha tokens (dark default, overridden in html[data-adm-mode="light"]) ── */
+html {
+  --adm-a015: rgba(255,255,255,0.015);
+  --adm-a022: rgba(255,255,255,0.022);
+  --adm-a03: rgba(255,255,255,0.03);
+  --adm-a035: rgba(255,255,255,0.035);
+  --adm-a04: rgba(255,255,255,0.04);
+  --adm-a055: rgba(255,255,255,0.055);
+  --adm-a05: rgba(255,255,255,0.05);
+  --adm-a06: rgba(255,255,255,0.06);
+  --adm-a07: rgba(255,255,255,0.07);
+  --adm-a08: rgba(255,255,255,0.08);
+  --adm-a09: rgba(255,255,255,0.09);
+  --adm-a10: rgba(255,255,255,0.10);
+  --adm-a12: rgba(255,255,255,0.12);
+  --adm-a13: rgba(255,255,255,0.13);
+  --adm-a14: rgba(255,255,255,0.14);
+  --adm-a15: rgba(255,255,255,0.15);
+  --adm-a2: rgba(255,255,255,0.2);
+  --adm-a22c: rgba(255,255,255,0.22);
+  --adm-a25: rgba(255,255,255,0.25);
+  --adm-a28: rgba(255,255,255,0.28);
+  --adm-a3: rgba(255,255,255,0.3);
+  --adm-a35: rgba(255,255,255,0.35);
+  --adm-a38: rgba(255,255,255,0.38);
+  --adm-a45: rgba(255,255,255,0.45);
+  --adm-a65: rgba(255,255,255,0.65);
+  --adm-a7: rgba(255,255,255,0.7);
+  --adm-a75: rgba(255,255,255,0.75);
+  --adm-shadow-08: rgba(0,0,0,0.08);
+  --adm-shadow-12: rgba(0,0,0,0.12);
+  --adm-shadow-20: rgba(0,0,0,0.20);
+  --adm-shadow-25: rgba(0,0,0,0.25);
+  --adm-shadow-30: rgba(0,0,0,0.30);
+  --adm-shadow-35: rgba(0,0,0,0.35);
+  --adm-shadow-40: rgba(0,0,0,0.40);
+  --adm-shadow-50: rgba(0,0,0,0.50);
+}
+html[data-adm-mode="light"] {
+  --adm-a015: rgba(15,23,42,0.03);
+  --adm-a022: rgba(15,23,42,0.03);
+  --adm-a03: rgba(15,23,42,0.05);
+  --adm-a035: rgba(15,23,42,0.05);
+  --adm-a04: rgba(15,23,42,0.055);
+  --adm-a055: rgba(15,23,42,0.06);
+  --adm-a05: rgba(15,23,42,0.06);
+  --adm-a06: rgba(15,23,42,0.07);
+  --adm-a07: rgba(15,23,42,0.08);
+  --adm-a08: rgba(15,23,42,0.09);
+  --adm-a09: rgba(15,23,42,0.10);
+  --adm-a10: rgba(15,23,42,0.11);
+  --adm-a12: rgba(15,23,42,0.12);
+  --adm-a13: rgba(15,23,42,0.14);
+  --adm-a14: rgba(15,23,42,0.14);
+  --adm-a15: rgba(15,23,42,0.16);
+  --adm-a2: rgba(15,23,42,0.18);
+  --adm-a22c: rgba(15,23,42,0.38);
+  --adm-a25: rgba(15,23,42,0.22);
+  --adm-a28: rgba(15,23,42,0.42);
+  --adm-a3: rgba(15,23,42,0.45);
+  --adm-a35: rgba(15,23,42,0.48);
+  --adm-a38: rgba(15,23,42,0.50);
+  --adm-a45: rgba(15,23,42,0.52);
+  --adm-a65: rgba(15,23,42,0.58);
+  --adm-a7: rgba(15,23,42,0.62);
+  --adm-a75: rgba(15,23,42,0.68);
+  --adm-shadow-08: rgba(15,23,42,0.06);
+  --adm-shadow-12: rgba(15,23,42,0.08);
+  --adm-shadow-20: rgba(15,23,42,0.10);
+  --adm-shadow-25: rgba(15,23,42,0.12);
+  --adm-shadow-30: rgba(15,23,42,0.14);
+  --adm-shadow-35: rgba(15,23,42,0.16);
+  --adm-shadow-40: rgba(15,23,42,0.18);
+  --adm-shadow-50: rgba(15,23,42,0.22);
+}
+
+/* ── Reset App.css body/root constraints for admin ── */
+body:has(.adm-root),
+body:has(.adm-center),
+body:has(.ls-root) {
+  padding: 0;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+/* Поверх фона от MUI CssBaseline: иначе при рассинхроне palette и --bg просвечивает светлый body */
+body:has(.adm-root),
+body:has(.adm-center) {
+  background: var(--bg) !important;
+}
+body:has(.adm-root) #root,
+body:has(.adm-center) #root,
+body:has(.ls-root) #root {
+  width: 100%;
+  max-width: none;
+}
+
+body:has(.adm-landing-choice-root) {
+  padding: 0;
+  background: var(--bg) !important;
+}
+body:has(.adm-landing-choice-root) #root {
+  width: 100%;
+  max-width: none;
+  min-height: 100svh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+

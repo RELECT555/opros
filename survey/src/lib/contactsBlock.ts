@@ -1,5 +1,5 @@
 import type { ContactsBlockConfig, SurveyConsentItem } from './supabase'
-import { phoneRegex } from '../components/survey/dynamic-form/utils'
+import { phoneRegex } from './validation'
 
 /** Поля формы, нужные для шага контактов и галочек согласия */
 export type ContactsFormSlice = {

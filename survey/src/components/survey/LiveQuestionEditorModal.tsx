@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { scaleValues } from '../../domain/scaleRange'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { SurveyQuestion, QuestionMediaKind } from '../../lib/supabase'
@@ -51,7 +52,7 @@ function LiveQuestionDraftPreview({ q, index }: { q: SurveyQuestion; index: numb
   const mediaHint = mediaPreviewHint(q)
   const min = q.scaleMin ?? 1
   const max = q.scaleMax ?? 10
-  const ticks = Array.from({ length: max - min + 1 }, (_, i) => i + min)
+  const ticks = scaleValues(min, max)
 
   return (
     <div className="card qcard lqe-preview-card">
@@ -192,10 +193,11 @@ export function LiveQuestionEditorModal({ open, question, questionIndex, onClose
         next.options = ['']
       }
       if (next.type === 'scale') {
-        const a = Number(draft.scaleMin) || 1
-        const b = Number(draft.scaleMax) || 10
-        next.scaleMin = Math.min(a, b)
-        next.scaleMax = Math.max(a, b)
+        const a = draft.scaleMin ?? 1
+        const b = draft.scaleMax ?? 10
+        if (!scaleValues(a, b).length) throw new Error('Шкала должна содержать от 1 до 100 целых значений; минимум не больше максимума')
+        next.scaleMin = a
+        next.scaleMax = b
       }
       if (!next.media?.url?.trim()) {
         next.media = undefined
@@ -384,7 +386,7 @@ export function LiveQuestionEditorModal({ open, question, questionIndex, onClose
                           className="lqe-input lqe-input--num"
                           type="number"
                           value={draft.scaleMin ?? 1}
-                          onChange={e => setDraft(d => ({ ...d, scaleMin: Number(e.target.value) || 1 }))}
+                          onChange={e => setDraft(d => ({ ...d, scaleMin: Number(e.target.value) }))}
                         />
                       </label>
                       <label className="lqe-field lqe-field--inline">
@@ -393,7 +395,7 @@ export function LiveQuestionEditorModal({ open, question, questionIndex, onClose
                           className="lqe-input lqe-input--num"
                           type="number"
                           value={draft.scaleMax ?? 10}
-                          onChange={e => setDraft(d => ({ ...d, scaleMax: Number(e.target.value) || 10 }))}
+                          onChange={e => setDraft(d => ({ ...d, scaleMax: Number(e.target.value) }))}
                         />
                       </label>
                     </div>

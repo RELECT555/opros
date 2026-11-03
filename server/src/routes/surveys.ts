@@ -7,6 +7,7 @@ import { emitSurveyCreated, emitSurveyUpdated } from '../ws/index.js'
 import type { Survey } from '../types/models.js'
 import type { AuthContext } from '../types/auth.js'
 import { isFullAccess } from '../types/auth.js'
+import { validateSurveyConfig } from '../lib/survey-config-validation.js'
 
 const ID_PARAMS = {
   type: 'object',
@@ -19,7 +20,7 @@ const SLUG_PARAMS = {
 } as const
 
 const SURVEY_SELECT = `
-  id, slug, title, description, config, is_active, created_at, owner_id
+  id, revision, slug, title, description, config, is_active, created_at, owner_id
 `
 
 async function canDeleteSurvey(ctx: AuthContext, surveyId: number): Promise<boolean> {
@@ -123,7 +124,9 @@ export async function surveysRoutes(app: FastifyInstance) {
     },
     async (req, reply) => {
       const ctx = req.authCtx!
-      const { slug, title, description, config } = req.body
+      const { slug, title, description, config = { questions: [] } } = req.body
+      const configError = validateSurveyConfig(config)
+      if (configError) return reply.code(400).send({ error: configError, code: 'INVALID_SURVEY_CONFIG' })
       const ownerId = ctx.kind === 'oauth' ? ctx.userId : null
 
       const row = await queryOne<Survey>(
@@ -144,7 +147,7 @@ export async function surveysRoutes(app: FastifyInstance) {
     },
   )
 
-  app.put<{ Params: { id: string }; Body: { config: unknown } }>(
+  app.put<{ Params: { id: string }; Body: { config: unknown; expected_revision: number } }>(
     '/admin/surveys/:id/config',
     {
       preHandler: requireAdminKey,
@@ -152,8 +155,11 @@ export async function surveysRoutes(app: FastifyInstance) {
         params: ID_PARAMS,
         body: {
           type: 'object',
-          required: ['config'],
-          properties: { config: { type: 'object' } },
+          required: ['config', 'expected_revision'],
+          properties: {
+            config: { type: 'object' },
+            expected_revision: { type: 'integer', minimum: 1, maximum: 2_147_483_646 },
+          },
           additionalProperties: false,
         },
       },
@@ -164,11 +170,19 @@ export async function surveysRoutes(app: FastifyInstance) {
       if (!(await canAccessSurvey(ctx, id))) {
         return reply.code(403).send({ error: 'Нет доступа к опросу' })
       }
+      const configError = validateSurveyConfig(req.body.config)
+      if (configError) return reply.code(400).send({ error: configError, code: 'INVALID_SURVEY_CONFIG' })
       const row = await queryOne<Survey>(
-        `update surveys set config = $1 where id = $2 returning *`,
-        [JSON.stringify(req.body.config), id],
+        `update surveys set config = $1, revision = revision + 1
+         where id = $2 and revision = $3 returning *`,
+        [JSON.stringify(req.body.config), id, req.body.expected_revision],
       )
-      if (!row) return reply.code(404).send({ error: 'Опрос не найден' })
+      if (!row) {
+        const current = await queryOne<{ revision: number }>('select revision from surveys where id = $1', [id])
+        if (!current) return reply.code(404).send({ error: 'Опрос не найден' })
+        return reply.code(409).send({ error: 'Опрос изменён другим редактором. Загрузите актуальную версию перед сохранением.',
+          code: 'SURVEY_REVISION_CONFLICT', current_revision: current.revision })
+      }
 
       emitSurveyUpdated({
         id: row.id,

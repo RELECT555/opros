@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react'
+import { useState, useEffect, useRef, useCallback, type CSSProperties, type SetStateAction } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   getSurveyById,
+  ApiError,
   updateSurveyConfig,
   uploadSurveyLogo,
 } from '../../lib/api-client'
@@ -19,6 +20,9 @@ import {
 import type { SurveyCtaStyle, SurveyOrbIntensity, SurveyRadiusPreset, SurveyTypeScale } from '../../lib/surveyDesign'
 import { SavedIcon } from './AdminFormParts'
 import { DesignTabSkeleton } from './AdminSkeletons'
+import { useSurveyEditorDraft } from '../../lib/useSurveyEditorDraft'
+import { downloadEditorDraft } from '../../lib/editorDraft'
+import { EditorDraftNotice } from './EditorDraftNotice'
 
 type PresetColors = Pick<
   SurveyDesign,
@@ -54,9 +58,13 @@ interface Props {
 }
 
 type PreviewTab = 'welcome' | 'question' | 'contacts' | 'success'
+type DesignDraft = { design: SurveyDesign | null; sticker: string }
+const EMPTY_DESIGN: DesignDraft = { design: null, sticker: '' }
 
 export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
-  const [design, setDesign] = useState<SurveyDesign | null>(null)
+  const [survey, setSurvey] = useState<Survey | null>(null)
+  const editor = useSurveyEditorDraft(surveyId, 'design', EMPTY_DESIGN)
+  const { draft, value: { design, sticker }, dirty, revision, conflict } = editor
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -64,7 +72,14 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
   const [revertPresetId, setRevertPresetId] = useState('indigo')
   const [previewTab, setPreviewTab] = useState<PreviewTab>('welcome')
   const [uploadBusy, setUploadBusy] = useState(false)
-  const [sticker, setSticker] = useState('')
+  const setDesign = useCallback((next: SetStateAction<SurveyDesign | null>) => {
+    draft.change(previous => ({ ...previous, design: typeof next === 'function' ? next(previous.design) : next }))
+    setSaved(false)
+  }, [draft])
+  const setSticker = useCallback((next: string) => {
+    draft.change(previous => ({ ...previous, sticker: next }))
+    setSaved(false)
+  }, [draft])
 
   const patchDesign = useCallback((updates: Partial<SurveyDesign>) => {
     setDesign(d => {
@@ -74,16 +89,16 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
       if (touchesTheme) next.preset = 'custom'
       return next
     })
-  }, [])
+  }, [setDesign])
 
   useEffect(() => {
     let cancelled = false
     getSurveyById(surveyId)
       .then(s => {
         if (cancelled || !s) return
-        setDesign(mergeSurveyDesign(s.config.design))
-        setSticker(s.config.sticker?.trim() ?? '')
-        const p = s.config.design?.preset
+        setSurvey(s)
+        draft.load({ design: mergeSurveyDesign(s.config.design), sticker: s.config.sticker?.trim() ?? '' }, s.revision)
+        const p = draft.getSnapshot().value.design?.preset
         setRevertPresetId(p && p !== 'custom' ? p : 'indigo')
       })
       .catch(e => {
@@ -93,7 +108,7 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [surveyId])
+  }, [surveyId, draft])
 
   function applyPreset(p: DesignPreset) {
     setDesign(d => ({
@@ -110,27 +125,43 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
   }
 
   async function save() {
-    if (!design) return
+    if (!design || !survey || revision === null || saving || conflict || !dirty) return
+    const snapshot = structuredClone(editor.value)
     setSaving(true)
     setErr(null)
     try {
-      const survey = await getSurveyById(surveyId)
-      if (!survey) throw new Error('Опросник не найден')
-      const trimmed = sticker.trim().slice(0, SURVEY_STICKER_MAX_LEN)
+      const trimmed = snapshot.sticker.trim().slice(0, SURVEY_STICKER_MAX_LEN)
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { sticker: _prev, ...rest } = survey.config
-      const newConfig: SurveyConfigData = { ...rest, design }
+      const newConfig: SurveyConfigData = { ...rest, design: snapshot.design! }
       if (trimmed) newConfig.sticker = trimmed
-      await updateSurveyConfig(surveyId, newConfig)
-      const updated = await getSurveyById(surveyId)
-      if (updated) onSurveyUpdate(updated)
-      setSaved(true)
+      const updated = await updateSurveyConfig(surveyId, newConfig, revision)
+      draft.saved(snapshot, revision, updated.revision)
+      setSurvey(updated)
+      onSurveyUpdate(updated)
+      setSaved(!draft.getSnapshot().dirty)
       setTimeout(() => setSaved(false), 2200)
     } catch (e: unknown) {
+      if (e instanceof ApiError && e.status === 409) draft.markConflict()
       setErr(e instanceof Error ? e.message : 'Ошибка сохранения')
     } finally {
       setSaving(false)
     }
+  }
+
+  async function reloadServer() {
+    if (saving) return
+    setSaving(true)
+    try {
+      const next = await getSurveyById(surveyId)
+      if (!next) throw new Error('Опросник не найден')
+      draft.load({ design: mergeSurveyDesign(next.config.design), sticker: next.config.sticker?.trim() ?? '' }, next.revision, true)
+      setSurvey(next)
+      onSurveyUpdate(next)
+      setSaved(false)
+      setErr(null)
+    } catch (error) { setErr(error instanceof Error ? error.message : 'Ошибка загрузки') }
+    finally { setSaving(false) }
   }
 
   async function onLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -160,6 +191,8 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
 
   return (
     <div className="dsg-root">
+      <EditorDraftNotice restored={editor.restored} conflict={conflict} storageError={editor.storageError} busy={saving}
+        onReload={reloadServer} onDownload={() => downloadEditorDraft(surveyId, 'design', revision, editor.value)} />
       <div className="dsg-header">
         <div className="dsg-header-icon"><BrushIcon /></div>
         <div>
@@ -170,7 +203,7 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
           type="button"
           className={`adm-btn-primary adm-btn-save ${saved ? 'adm-btn-saved' : ''}`}
           onClick={save}
-          disabled={saving}
+          disabled={saving || conflict || !dirty}
           style={{ marginLeft: 'auto' }}
         >
           {saving ? <><span className="adm-spinner" /> Сохранение...</>
@@ -179,7 +212,7 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
         </button>
       </div>
 
-      {err && <div className="adm-err-banner">{err}</div>}
+      {err && <div className="adm-err-banner" role="alert">{err}</div>}
 
       <div className="dsg-layout">
         <div className="dsg-controls">
@@ -341,7 +374,7 @@ export function DesignTab({ surveyId, onSurveyUpdate }: Props) {
                     onChange={e => patchDesign({ logo_url: e.target.value })}
                     spellCheck={false}
                   />
-                  <p className="dsg-field-hint">PNG/WebP/SVG до 2 МБ. Или загрузите файл — попадёт в Supabase Storage (bucket survey-logos).</p>
+                  <p className="dsg-field-hint">Для загрузки доступны PNG, JPEG, WebP и GIF до 2 МБ.</p>
                   <div className="dsg-upload-row">
                     <input
                       id="dsg-logo-file"

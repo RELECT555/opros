@@ -385,6 +385,15 @@ export function appendSurveyQuestion(cfg: SurveyConfigData, question: SurveyQues
   return appendQuestionBlockOnPage(withPage, pageId, question)
 }
 
+/** A deleted question must not leave dangling canvas references. */
+export function removeSurveyQuestion(cfg: SurveyConfigData, questionId: string): SurveyConfigData {
+  const next = { ...cfg, questions: cfg.questions.filter(question => question.id !== questionId) }
+  if (!cfg.canvas) return next
+  return { ...next, canvas: { ...cfg.canvas, pages: cfg.canvas.pages.map(page => ({ ...page,
+    blocks: page.blocks.filter(block => block.type !== 'question' || block.questionId !== questionId),
+  })) } }
+}
+
 export function countQuestionRefsInCanvas(canvas: SurveyCanvas | undefined, questionId: string): number {
   if (!canvas?.pages) return 0
   let n = 0

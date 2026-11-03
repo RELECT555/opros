@@ -7,6 +7,8 @@ import { emitResponseNew, emitResponseStatus } from '../ws/index.js'
 import { httpLog } from '../logger.js'
 import type { SurveyRecord, SurveyConfigData } from '../types/models.js'
 import { validateResponse } from '../lib/response-validation.js'
+import { validateSurveyConfig } from '../lib/survey-config-validation.js'
+import { surveyConfigSnapshot } from '../lib/survey-config-snapshot.js'
 
 const PAGE_SIZE = 20
 const EXPORT_DEFAULT_LIMIT = 5_000
@@ -23,6 +25,7 @@ export async function responsesRoutes(app: FastifyInstance) {
   app.post<{
     Body: {
       survey_id: number
+      survey_revision: number
       answers?: Record<string, unknown>
       name?: string
       phone?: string
@@ -38,9 +41,10 @@ export async function responsesRoutes(app: FastifyInstance) {
     schema: {
       body: {
         type: 'object',
-        required: ['survey_id'],
+        required: ['survey_id', 'survey_revision'],
         properties: {
           survey_id:       { type: 'integer', minimum: 1 },
+          survey_revision: { type: 'integer', minimum: 1, maximum: 2_147_483_647 },
           answers:         { type: 'object' },
           name:            { type: 'string', maxLength: 200 },
           phone:           { type: 'string', maxLength: 30 },
@@ -55,19 +59,28 @@ export async function responsesRoutes(app: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    const { survey_id, answers, name, phone, email, comment, token,
+    const { survey_id, survey_revision, answers, name, phone, email, comment, token,
             crm_purpose, crm_used_before, current_crm } = req.body
 
     const client = await db.connect()
     let row: SurveyRecord | null = null
     try {
       await client.query('begin')
-      const survey = await client.query<{ is_active: boolean; config: SurveyConfigData }>(
-        'select is_active, config from surveys where id = $1 for share', [survey_id],
+      const survey = await client.query<{ is_active: boolean; config: SurveyConfigData; revision: number }>(
+        'select is_active, config, revision from surveys where id = $1 for share', [survey_id],
       )
       if (!survey.rows[0]?.is_active) {
         await client.query('rollback')
         return reply.code(404).send({ error: 'Опрос недоступен' })
+      }
+      if (survey.rows[0].revision !== survey_revision) {
+        await client.query('rollback')
+        return reply.code(409).send({ error: 'Опрос изменился во время заполнения. Обновите страницу и проверьте ответы.',
+          code: 'SURVEY_REVISION_CONFLICT', current_revision: survey.rows[0].revision })
+      }
+      if (validateSurveyConfig(survey.rows[0].config)) {
+        await client.query('rollback')
+        return reply.code(409).send({ error: 'Опрос некорректно настроен. Сообщите организатору опроса.', code: 'INVALID_SURVEY_CONFIG' })
       }
       let responseEmail = email?.trim() || null
       if (token) {
@@ -91,8 +104,9 @@ export async function responsesRoutes(app: FastifyInstance) {
       const insert = await client.query<SurveyRecord>(
         `insert into survey_responses
            (survey_id, answers, name, phone, email, comment, token,
-            crm_purpose, crm_used_before, current_crm)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+            crm_purpose, crm_used_before, current_crm,
+            survey_revision, config_snapshot, snapshot_source)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'submission')
          returning *`,
         [
           survey_id,
@@ -104,6 +118,8 @@ export async function responsesRoutes(app: FastifyInstance) {
           crm_purpose ?? [],
           crm_used_before ?? [],
           current_crm ?? '',
+          survey.rows[0].revision,
+          JSON.stringify(surveyConfigSnapshot(survey.rows[0].config)),
         ],
       )
       row = insert.rows[0] ?? null
