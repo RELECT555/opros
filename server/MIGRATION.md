@@ -4,9 +4,40 @@
 
 ## Текущее состояние
 
-**Бэкенд готов на 100%.** Все API-эндпоинты покрывают функционал Supabase.
-Фронт-клиенты (`api-client.ts`, `ws-client.ts`) написаны и готовы к подключению.
-Сейчас фронт работает через Supabase — переключение требует только смены импортов.
+Фронтенд использует HTTP API; клиентский пароль и переход на прямые записи в
+Supabase при ошибке API удалены. Серверный код используется и локально, и в
+Supabase Edge Function `opros-api`. Собственный WebSocket работает только в
+локальном/self-hosted режиме и требует администраторскую авторизацию для всех каналов.
+
+## Развёртывание Vercel + Supabase
+
+- `npm run build:edge` в `server` создаёт bundle и import map в
+  `supabase/functions/opros-api`. Файлы генерируются из серверного кода и lock-файла.
+- Edge entrypoint вызывает `buildApp({ hosted: true })`; HTTP-запросы обрабатывает
+  тот же Fastify API. PostgreSQL подключается через встроенный `SUPABASE_DB_URL`.
+- Внешняя JWT-проверка gateway для этой функции выключена: собственный middleware
+  проверяет admin JWT и Supabase OAuth на каждом административном запросе.
+  Публичными остаются только существующие публичные маршруты опросов.
+- `supabase/migrations/005_hosted_api_security.sql` закрывает Data API для
+  `anon`/`authenticated`. Серверный signing secret и bcrypt-хеш пароля хранятся
+  в закрытой схеме `opros_private`, отсутствующей в публичном API.
+- Начальный пароль администратора создан при развёртывании и сохранён локально
+  в игнорируемом `server/.env.local`. Этот файл не загружается на Vercel и не
+  читается браузером. Смена пароля требует обновления bcrypt-хеша сервером.
+- Загруженные изображения в hosted-режиме хранятся в Supabase Storage,
+  bucket `survey-logos`. SVG не принимается. Локальный режим сохраняет файлы на диск.
+- Vercel устанавливает зависимости через `npm ci` в `survey`, собирает frontend
+  и проксирует `/api/*` в Edge Function. `VITE_SUPABASE_URL` и
+  `VITE_SUPABASE_ANON_KEY` задаются в окружении Vercel для OAuth-клиента.
+  В production-сборке `VITE_API_URL` оставляют пустым для same-origin API.
+- OAuth Google/Microsoft использует существующие настройки провайдеров Supabase;
+  redirect URL нового сайта нужно разрешить отдельно. Проверка входа по паролю
+  не доказывает готовность OAuth.
+
+Проверки: `npm test`, `npm run build`, `npm run build:edge` в `server`;
+`npx tsc -b`, `npm run build`, `npm run lint` в `survey`.
+Полный frontend lint содержит существующие нарушения React hooks и должен
+проверяться отдельно от успешной сборки.
 
 ---
 
@@ -18,7 +49,6 @@
 DATABASE_URL=postgresql://user:pass@host:5432/opros
 ADMIN_PASSWORD=надёжный-пароль-минимум-16-символов
 JWT_SECRET=случайная-строка-минимум-32-символа
-ADMIN_API_KEY=статичный-ключ-для-обратной-совместимости
 PORT=3001
 FRONTEND_URL=https://your-domain.com
 PUBLIC_URL=https://api.your-domain.com
@@ -27,6 +57,8 @@ PUBLIC_URL=https://api.your-domain.com
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_CHAT_ID=...
 UPLOAD_DIR=./uploads
+# Только адреса доверенных reverse proxy, через запятую. По умолчанию доверие выключено.
+TRUST_PROXY=127.0.0.1,::1
 ```
 
 ### Фронтенд (survey/.env)
@@ -48,6 +80,18 @@ npm start
 ```
 
 При первом запуске автоматически применятся SQL-миграции из `server/migrations/`.
+
+Для Docker Compose заполните `ADMIN_PASSWORD` и `JWT_SECRET` в корневом `.env`.
+PostgreSQL использует серверные миграции, которые применяет API; Supabase SQL в
+обычный PostgreSQL не загружается. Доверие к заголовкам IP разрешено только nginx
+с адресом `172.30.44.10` в сети Compose; наружу API доступен через nginx, порт
+3001 привязан к loopback. При изменении подсети обновите `TRUST_PROXY`.
+Изображения сохраняются в отдельном volume и доступны через `/uploads/`.
+Для фронтенда за nginx собирайте с пустым `VITE_API_URL` (same origin).
+Существующий volume БД не удаляйте: исправление Compose не сбрасывает данные.
+
+Ответы и аналитика обновляются через HTTP каждые 15 секунд, пока вкладка видима,
+и при возвращении фокуса. Этот механизм работает и с OAuth, и в Edge-режиме.
 
 ---
 
